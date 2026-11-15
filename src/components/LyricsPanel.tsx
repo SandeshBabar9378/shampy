@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Mic2, X, Music2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { fetchSyncedLyrics, LyricLine } from "@/lib/lyrics";
+import { classifyScript, extractBrackets } from "@/lib/script";
 
 interface LyricsPanelProps {
   onClose?: () => void;
@@ -41,7 +42,7 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
         setLoading(false);
 
         if (res.lines.length > 0) {
-          const songKey = `shubhu_translit_v2_${currentTrack.title}_${currentTrack.artist}`.toLowerCase();
+          const songKey = `shubhu_translit_v3_${currentTrack.title}_${currentTrack.artist}`.toLowerCase();
           try {
             const cached = localStorage.getItem(songKey);
             if (cached) {
@@ -53,21 +54,53 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
             // ignore localStorage error
           }
 
-          const uniqueTexts = Array.from(new Set(res.lines.map((l) => l.text.trim()).filter(Boolean)));
-          if (uniqueTexts.length === 0) return;
+          // Step 1: Filter and extract bracketed lines.
+          // Only lines whose inner text is "roman" should be sent to /api/transliterate.
+          // Lines classified as "devanagari" or "other" get NO second line.
+          const lineItems = res.lines.map((l) => {
+            const trimmed = l.text.trim();
+            const extracted = extractBrackets(trimmed);
+            const script = classifyScript(extracted.innerText);
+            return {
+              original: trimmed,
+              extracted,
+              script,
+            };
+          });
+
+          const romanItems = lineItems.filter((item) => item.original && item.script === "roman");
+          const uniqueInnerTexts = Array.from(
+            new Set(romanItems.map((item) => item.extracted.innerText).filter(Boolean))
+          );
+
+          if (uniqueInnerTexts.length === 0) return;
 
           try {
             const translitRes = await fetch("/api/transliterate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ lines: uniqueTexts }),
+              body: JSON.stringify({ lines: uniqueInnerTexts }),
             });
             if (!translitRes.ok) return;
             const translitData = (await translitRes.json()) as TransliterationResponse;
             if (translitData.transliterations && !isCancelled) {
-              setTransliterations(translitData.transliterations);
+              const innerTranslitMap = translitData.transliterations;
+              const fullLineTranslitMap: Record<string, string> = {};
+
+              // Map back to the original line, applying surrounding brackets if present
+              for (const item of romanItems) {
+                const transliteratedInner = innerTranslitMap[item.extracted.innerText];
+                if (transliteratedInner) {
+                  const finalLine = item.extracted.hasBrackets
+                    ? `${item.extracted.prefix}${transliteratedInner}${item.extracted.suffix}`
+                    : transliteratedInner;
+                  fullLineTranslitMap[item.original] = finalLine;
+                }
+              }
+
+              setTransliterations(fullLineTranslitMap);
               try {
-                localStorage.setItem(songKey, JSON.stringify(translitData.transliterations));
+                localStorage.setItem(songKey, JSON.stringify(fullLineTranslitMap));
               } catch {
                 // ignore localStorage quota error
               }

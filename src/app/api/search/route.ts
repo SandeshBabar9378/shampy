@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isCommunityPlaylist } from "@/lib/playlistUtils";
 
 interface FormattedSearchResult {
   videoId: string;
@@ -14,6 +15,7 @@ interface FormattedPlaylist {
   title: string;
   author: string;
   thumbnail: string;
+  isCommunity?: boolean;
 }
 
 interface FormattedArtist {
@@ -92,7 +94,8 @@ const MAX_RESULTS = 50;
 // Metrolist (innertube/src/main/kotlin/com/metrolist/innertube/YouTube.kt)
 // SearchFilter constants.
 const SONG_FILTER_PARAMS = "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D";
-const PLAYLIST_FILTER_PARAMS = "EgeKAQQoADgBagwQDhAKEAMQBRAJEAQ%3D";
+const PLAYLIST_FILTER_PARAMS = "EgeKAQQoADgBagwQDhAKEAMQBRAJEAQ%3D"; // featured playlists
+const COMMUNITY_PLAYLIST_FILTER_PARAMS = "EgeKAQQoAEABahIQBRADEAQQCRAKEBUQDhAQEBE%3D"; // community playlists
 const ARTIST_FILTER_PARAMS = "EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D";
 const ALBUM_FILTER_PARAMS = "EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D";
 
@@ -390,11 +393,13 @@ function parseBrowseFields(value: unknown): BrowseFields | null {
 function parsePlaylistItem(value: unknown): FormattedPlaylist | null {
   const fields = parseBrowseFields(value);
   if (!fields) return null;
+  const author = fields.metadata[0] || "";
   return {
     browseId: fields.browseId,
     title: fields.title,
-    author: fields.metadata[0] || "",
+    author,
     thumbnail: fields.thumbnail,
+    isCommunity: isCommunityPlaylist(author),
   };
 }
 
@@ -547,9 +552,10 @@ export async function GET(req: NextRequest) {
     // Use the Songs filter so the response is a full songs list, not a mixed short list.
     // Playlist/artist/album filters are the exact SearchFilter params from Metrolist's
     // innertube/src/main/kotlin/com/metrolist/innertube/YouTube.kt.
-    const [filtered, playlistData, artistData, albumData, unfilteredData] = await Promise.all([
+    const [filtered, playlistData, communityPlaylistData, artistData, albumData, unfilteredData] = await Promise.all([
       requestSearch({ query: q, params: SONG_FILTER_PARAMS }),
       requestSearch({ query: q, params: PLAYLIST_FILTER_PARAMS }),
+      requestSearch({ query: q, params: COMMUNITY_PLAYLIST_FILTER_PARAMS }),
       requestSearch({ query: q, params: ARTIST_FILTER_PARAMS }),
       requestSearch({ query: q, params: ALBUM_FILTER_PARAMS }),
       requestSearch({ query: q }),
@@ -589,9 +595,21 @@ export async function GET(req: NextRequest) {
       })
       .slice(0, MAX_RESULTS);
 
-    const playlists = playlistData
+    const officialPlaylists = playlistData
       ? parseBrowseList(playlistData, parsePlaylistItem, 20)
       : [];
+    const communityPlaylists = communityPlaylistData
+      ? parseBrowseList(communityPlaylistData, parsePlaylistItem, 20)
+      : [];
+
+    // Combine official and community playlists without duplicate browseIds
+    const playlistSeen = new Set<string>();
+    const playlists: FormattedPlaylist[] = [];
+    for (const p of [...officialPlaylists, ...communityPlaylists]) {
+      if (!p.browseId || playlistSeen.has(p.browseId)) continue;
+      playlistSeen.add(p.browseId);
+      playlists.push(p);
+    }
     const artists = artistData ? parseBrowseList(artistData, parseArtistItem, 20) : [];
     const albums = albumData ? parseBrowseList(albumData, parseAlbumItem, 20) : [];
     const topResult = unfilteredData ? topResultOf(unfilteredData) : null;

@@ -80,9 +80,10 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<string>("home");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
-  const [searchArtists, setSearchArtists] = useState<{ name: string; image: string }[]>([]);
-  const [searchAlbums, setSearchAlbums] = useState<{ title: string; artist: string; cover: string }[]>([]);
-  const [searchPlaylists, setSearchPlaylists] = useState<{ browseId: string; title: string; author: string; thumbnail: string }[]>([]);
+  const [searchArtists, setSearchArtists] = useState<{ name: string; image: string; browseId: string }[]>([]);
+  const [searchAlbums, setSearchAlbums] = useState<{ title: string; artist: string; cover: string; browseId: string }[]>([]);
+  const [searchPlaylists, setSearchPlaylists] = useState<{ browseId: string; title: string; author: string; thumbnail: string; isCommunity?: boolean }[]>([]);
+  const [communityHomePlaylists, setCommunityHomePlaylists] = useState<{ browseId: string; title: string; author: string; thumbnail: string; isCommunity?: boolean }[]>([]);
   const [searchTopResult, setSearchTopResult] = useState<Track | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -158,6 +159,41 @@ export default function Home() {
       })
       .catch((e) => console.error(e));
   }, []);
+
+  // Fetch Community Playlists for Home (based on recentlyPlayed artist/genre or trending default)
+  useEffect(() => {
+    let query = "hindi playlist";
+    try {
+      const raw = localStorage.getItem("recentlyPlayed");
+      if (raw) {
+        const recents: Track[] = JSON.parse(raw);
+        if (Array.isArray(recents) && recents.length > 0) {
+          const artistCounts = new Map<string, number>();
+          recents.forEach((t) => {
+            if (t.artist && t.artist !== "Unknown Artist") {
+              artistCounts.set(t.artist, (artistCounts.get(t.artist) || 0) + 1);
+            }
+          });
+          if (artistCounts.size > 0) {
+            const topArtist = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+            query = `${topArtist} playlist`;
+          } else if (recents[0]?.genre) {
+            query = `${recents[0].genre} playlist`;
+          }
+        }
+      }
+    } catch {}
+
+    fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const playlists = Array.isArray(data?.playlists) ? data.playlists : [];
+        if (playlists.length > 0) {
+          setCommunityHomePlaylists(playlists.slice(0, 10));
+        }
+      })
+      .catch(() => {});
+  }, [recentlyPlayed]);
 
   // Fetch full liked songs when liked view is opened
   useEffect(() => {
@@ -342,16 +378,18 @@ export default function Home() {
               data.topResult ? toTrack(data.topResult) : null,
             );
             setSearchArtists(
-              (data.artists || []).map((artist: { name: string; thumbnail?: string }) => ({
+              (data.artists || []).map((artist: { name: string; thumbnail?: string; browseId?: string }) => ({
                 name: artist.name,
                 image: artist.thumbnail || "/placeholder.svg",
+                browseId: artist.browseId || "",
               })),
             );
             setSearchAlbums(
-              (data.albums || []).map((album: { title: string; artist?: string; thumbnail?: string }) => ({
+              (data.albums || []).map((album: { title: string; artist?: string; thumbnail?: string; browseId?: string }) => ({
                 title: album.title,
                 artist: album.artist || "",
                 cover: album.thumbnail || "/placeholder.svg",
+                browseId: album.browseId || "",
               })),
             );
             setSearchPlaylists(data.playlists || []);
@@ -663,6 +701,51 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Community Playlists Row (hidden if empty) */}
+              {communityHomePlaylists.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Music className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-xl font-bold text-white">Community Playlists</h2>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                    {communityHomePlaylists.map((pl) => (
+                      <div
+                        key={pl.browseId}
+                        onClick={() => router.push(`/playlist/${pl.browseId.replace(/^VL/, "")}`)}
+                        title={pl.title}
+                        className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
+                      >
+                        <img
+                          src={pl.thumbnail || "/placeholder.svg"}
+                          alt={pl.title}
+                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder.svg";
+                          }}
+                          className="w-28 h-28 rounded-xl object-cover mb-3 shadow-lg group-hover:scale-105 transition-transform"
+                        />
+                        <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400">
+                          {pl.title}
+                        </p>
+                        <p className="text-xs text-neutral-400 truncate mt-0.5">
+                          {pl.author || "Playlist"}
+                        </p>
+                        {pl.isCommunity && (
+                          <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                            Community playlist
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Trending Chartbusters Table */}
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -745,8 +828,8 @@ export default function Home() {
                 const queryLower = searchQuery.toLowerCase().trim();
 
                 // Compute unique artists and albums matching query (combine API + track results)
-                const matchingArtistsMap = new Map<string, { name: string; image: string }>();
-                const matchingAlbumsMap = new Map<string, { title: string; artist: string; cover: string }>();
+                const matchingArtistsMap = new Map<string, { name: string; image: string; browseId: string }>();
+                const matchingAlbumsMap = new Map<string, { title: string; artist: string; cover: string; browseId: string }>();
 
                 // Add API results first
                 searchArtists.forEach((a) => {
@@ -763,6 +846,7 @@ export default function Home() {
                       matchingArtistsMap.set(track.artist.toLowerCase(), {
                         name: track.artist,
                         image: track.coverUrl,
+                        browseId: "",
                       });
                     }
                   }
@@ -772,6 +856,7 @@ export default function Home() {
                         title: track.album,
                         artist: track.artist,
                         cover: track.coverUrl,
+                        browseId: "",
                       });
                     }
                   }
@@ -865,6 +950,11 @@ export default function Home() {
                               <p className="text-xs text-neutral-400 truncate mt-0.5">
                                 {playlist.author || "Playlist"}
                               </p>
+                              {playlist.isCommunity && (
+                                <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                                  Community playlist
+                                </span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -879,7 +969,11 @@ export default function Home() {
                           {matchingArtists.map((artist, idx) => (
                             <div
                               key={idx}
-                              onClick={() => setSearchQuery(artist.name)}
+                              onClick={() => {
+                                if (artist.browseId) {
+                                  router.push(`/artist/${artist.browseId}`);
+                                }
+                              }}
                               className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all text-center border border-neutral-800/40"
                             >
                               <img
@@ -910,7 +1004,11 @@ export default function Home() {
                           {matchingAlbums.map((album, idx) => (
                             <div
                               key={idx}
-                              onClick={() => setSearchQuery(album.title)}
+                              onClick={() => {
+                                if (album.browseId) {
+                                  router.push(`/album/${album.browseId}`);
+                                }
+                              }}
                               className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40"
                             >
                               <img

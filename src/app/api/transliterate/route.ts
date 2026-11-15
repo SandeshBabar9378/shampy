@@ -46,7 +46,7 @@ For each line:
 - Return ONLY a JSON array of strings matching the length of the input.`;
 
   try {
-    const model = "gemini-3.5-flash-lite";
+    const model = "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: "POST",
@@ -95,7 +95,13 @@ For each line:
       lines.forEach((line, idx) => {
         const devanagari = parsed[idx]?.trim();
         if (devanagari) {
-          transliterations[line] = devanagari;
+          // If the model returned the exact same text as the input for a roman line,
+          // treat it as a failure, do not cache/return it, and log the failure.
+          if (devanagari.toLowerCase() === line.toLowerCase()) {
+            console.log(`transliteration returned original text for line ${idx}`);
+          } else {
+            transliterations[line] = devanagari;
+          }
         }
       });
     }
