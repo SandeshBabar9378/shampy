@@ -5,11 +5,12 @@ import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Volume2, VolumeX,
   Heart, Loader2, ChevronDown, ListPlus, Check,
-  Mic2, Moon, Gauge, ListMusic, ArrowLeft
+  Mic2, Moon, Gauge, ListMusic, ArrowLeft, Maximize2
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { NowPlayingFullscreen } from "@/components/NowPlayingFullscreen";
 import { SleepTimer } from "@/components/SleepTimer";
 import { PlaybackSpeed } from "@/components/PlaybackSpeed";
 import { QueueReorder } from "@/components/QueueReorder";
@@ -38,6 +39,7 @@ export function Player() {
 
   // Metrolist Feature Modals
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showSleepTimer, setShowSleepTimer] = useState(false);
   const [showSpeed, setShowSpeed] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
@@ -81,18 +83,18 @@ export function Player() {
   return (
     <>
       {/* ══════════════════════════════════════════════════════════════════════
-          DESKTOP PLAYER BAR — hidden on mobile
+          DESKTOP PLAYER BAR — Floating rounded pill with thin border
       ══════════════════════════════════════════════════════════════════════ */}
       <footer
         style={{
           background: `linear-gradient(
             to right,
-            rgba(${dominantColor}, 0.35) 0%,
-            rgba(18, 18, 18, 0.95) 40%
+            rgba(${dominantColor}, 0.25) 0%,
+            rgba(14, 16, 20, 0.92) 40%
           )`,
-          backdropFilter: "blur(20px)",
+          backdropFilter: "blur(24px)",
         }}
-        className="hidden sm:flex fixed bottom-0 left-0 right-0 h-24 border-t border-white/10 px-4 items-center justify-between gap-4 select-none z-40 transition-colors duration-500"
+        className="hidden sm:flex fixed bottom-3 left-4 right-4 h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500"
       >
 
         {/* LEFT — track info */}
@@ -214,7 +216,7 @@ export function Player() {
           </div>
         </div>
 
-        {/* RIGHT — volume */}
+        {/* RIGHT — volume + controls */}
         <div className="flex items-center justify-end gap-3 w-1/4 min-w-[190px]">
           <button onClick={toggleMute} className="text-neutral-400 hover:text-white cursor-pointer transition-colors">
             {isMuted || volume === 0
@@ -236,12 +238,14 @@ export function Player() {
 
           {/* Add to Playlist button right of volume */}
           <div className="relative flex items-center gap-1">
+            {/* Lyrics side panel */}
             <button
               onClick={() => {
                 setShowLyrics(!showLyrics);
-                setShowSleepTimer(false);
-                setShowSpeed(false);
                 setShowQueue(false);
+                setShowSpeed(false);
+                setShowSleepTimer(false);
+                setShowNowPlaying(false);
               }}
               className={`p-1.5 cursor-pointer transition-colors ${
                 showLyrics ? "text-emerald-400" : "text-neutral-400 hover:text-white"
@@ -308,6 +312,20 @@ export function Player() {
               ) : (
                 <ListPlus className="w-4 h-4" />
               )}
+            </button>
+
+            <button
+              onClick={() => {
+                setShowNowPlaying(true);
+                setShowLyrics(false);
+                setShowSleepTimer(false);
+                setShowSpeed(false);
+                setShowQueue(false);
+              }}
+              className="p-1.5 cursor-pointer text-neutral-400 hover:text-white transition-colors"
+              title="Now Playing"
+            >
+              <Maximize2 className="w-4 h-4" />
             </button>
 
             {/* Overlays */}
@@ -382,12 +400,12 @@ export function Player() {
             style={{
               background: `linear-gradient(
                 to right,
-                rgba(${dominantColor}, 0.5) 0%,
-                rgba(24, 24, 24, 0.95) 60%
+                rgba(${dominantColor}, 0.35) 0%,
+                rgba(18, 20, 24, 0.95) 60%
               )`,
-              backdropFilter: "blur(16px)",
+              backdropFilter: "blur(20px)",
             }}
-            className="flex items-center gap-3 border border-white/10 rounded-xl px-3 py-2 shadow-xl"
+            className="flex items-center gap-3 border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-2xl"
           >
             <img
               src={cover}
@@ -630,6 +648,11 @@ export function Player() {
           </div>
         )}
       </div>
+      {/* Full-Screen Now Playing Overlay */}
+      <NowPlayingFullscreen
+        isOpen={showNowPlaying}
+        onClose={() => setShowNowPlaying(false)}
+      />
     </>
   );
 }

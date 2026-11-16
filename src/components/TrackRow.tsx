@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Play, Pause, Heart, Plus, Check, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Track } from "@/lib/types";
 import { usePlayer } from "@/context/PlayerContext";
 
@@ -22,6 +23,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId }: TrackRowProps) {
+  const router = useRouter();
   const { currentTrack, isPlaying, playTrack, togglePlay, likedSongIds, toggleLike, playlists, addToPlaylist, queue: appQueue, setAppQueue, playNext, removeFromPlaylist } = usePlayer();
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
   const [showMobilePlaylistMenu, setShowMobilePlaylistMenu] = useState(false);
@@ -89,7 +91,11 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
     <>
       <div
         onClick={handlePlay}
-        className="group relative flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-neutral-800/60 transition-colors select-none text-sm cursor-pointer"
+        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl transition-all select-none text-sm cursor-pointer ${
+          isCurrent
+            ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+            : "hover:bg-white/5 border border-transparent"
+        }`}
       >
         {/* 1. Index & Track Info */}
         <div className="flex items-center gap-2.5 sm:gap-4 flex-1 min-w-0 pr-2">
@@ -134,7 +140,16 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
             >
               {track.title}
             </p>
-            <p className="text-xs text-neutral-400 truncate hover:text-white hover:underline">
+            <p
+              className={`text-xs text-neutral-400 truncate hover:text-white ${track.artistId ? "cursor-pointer hover:underline" : ""}`}
+              onClick={(e) => {
+                if (track.artistId) {
+                  e.stopPropagation();
+                  router.push(`/artist/${track.artistId}`);
+                }
+              }}
+              title={track.artistId ? "Go to artist page" : undefined}
+            >
               {track.artist}
             </p>
             {showSimilarBadge && (

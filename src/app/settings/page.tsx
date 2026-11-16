@@ -1,37 +1,35 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ChevronLeft } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ChevronLeft, Check, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-
-const LANGUAGES = ["Hindi", "English", "Marathi"] as const;
-type Language = (typeof LANGUAGES)[number];
+import { usePlayer } from "@/context/PlayerContext";
+import { AVATAR_OPTIONS } from "@/lib/avatars";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>("Hindi");
-  const [mounted, setMounted] = useState(false);
+  const { user, updateUser } = usePlayer();
+  const [username, setUsername] = useState("");
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("languagePreference");
-        if (saved && LANGUAGES.includes(saved as Language)) {
-          setSelectedLanguage(saved as Language);
-        }
-      } catch {}
-    }
-  }, []);
+    setUsername(user?.username || "");
+    setSelectedAvatar(user?.avatar || AVATAR_OPTIONS[0]);
+  }, [user?.username, user?.avatar]);
 
-  const handleSelectLanguage = (lang: Language) => {
-    setSelectedLanguage(lang);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("languagePreference", lang);
-        window.dispatchEvent(new Event("storage"));
-      } catch {}
-    }
+  const handleCancel = () => {
+    setUsername(user?.username || "");
+    setSelectedAvatar(user?.avatar || AVATAR_OPTIONS[0]);
+    setSaved(false);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) return;
+    await updateUser(username.trim(), selectedAvatar);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   return (
@@ -50,33 +48,91 @@ export default function SettingsPage() {
 
       {/* Settings Body */}
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-8">
-        {/* Music Preferences Section */}
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Music Preferences</h2>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              Choose your preferred language for recommendations and home playlists.
-            </p>
+        {/* Your Profile Section */}
+        <section className="space-y-5">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Your Profile</h2>
+              <p className="text-xs text-neutral-400 mt-0.5">Zero-login device identity</p>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            {LANGUAGES.map((lang) => {
-              const isSelected = mounted && selectedLanguage === lang;
-              return (
-                <button
-                  key={lang}
-                  onClick={() => handleSelectLanguage(lang)}
-                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-green-500 text-black font-bold shadow-md shadow-green-500/20"
-                      : "border border-neutral-600 text-neutral-300 hover:border-neutral-400 hover:text-white bg-transparent"
-                  }`}
-                >
-                  {lang}
-                </button>
-              );
-            })}
-          </div>
+          <form onSubmit={handleSave} className="space-y-6">
+            {/* Avatar Selector */}
+            <div>
+              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider block mb-3">
+                Choose avatar
+              </label>
+              <div className="flex items-center justify-between gap-2 p-2 bg-neutral-950 rounded-xl border border-neutral-800">
+                {AVATAR_OPTIONS.map((av, i) => (
+                  <button
+                    type="button"
+                    key={av}
+                    onClick={() => setSelectedAvatar(av)}
+                    title={`Avatar ${i + 1}`}
+                    className={`w-11 h-11 rounded-full p-0.5 border-2 transition-all cursor-pointer ${
+                      selectedAvatar === av
+                        ? "border-emerald-500 scale-105"
+                        : "border-transparent opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <img src={av} alt="Avatar option" className="w-full h-full rounded-full bg-neutral-800" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Username Input */}
+            <div>
+              <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider block mb-2">
+                Display name / username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. Dilip or BeatMaker"
+                required
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+
+            {/* Device ID information */}
+            <div className="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800 text-xs">
+              <p className="text-neutral-500 font-mono">
+                Device ID:{" "}
+                <span className="text-neutral-300 font-semibold">{user?.id || "Not available"}</span>
+              </p>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Your playlists, likes, and settings are automatically synced to this ID without passwords.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm text-neutral-400 hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+              >
+                {saved ? (
+                  <>
+                    <Check className="w-4 h-4" /> Saved!
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </button>
+            </div>
+          </form>
         </section>
       </main>
     </div>

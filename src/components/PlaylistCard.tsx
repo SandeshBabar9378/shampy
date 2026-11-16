@@ -29,13 +29,13 @@ export function PlaylistCard({ playlist, onClick, onPlay }: PlaylistCardProps) {
   return (
     <div
       onClick={onClick}
-      className="group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm hover:shadow-xl hover:scale-105"
+      className="group relative bg-neutral-900/50 hover:bg-neutral-800/80 p-3.5 rounded-2xl transition-all duration-300 cursor-pointer flex flex-col border border-white/5 hover:border-emerald-500/20 shadow-md hover:shadow-2xl hover:-translate-y-1.5 select-none"
     >
-      <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 bg-neutral-800 shadow-md">
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-neutral-800 shadow-md">
         <PlaylistCollage
           tracks={playlist.tracks}
           fallbackCoverUrl={playlist.coverUrl}
-          className="w-full h-full"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
 
         {onPlay && (
@@ -44,19 +44,19 @@ export function PlaylistCard({ playlist, onClick, onPlay }: PlaylistCardProps) {
               e.stopPropagation();
               onPlay();
             }}
-            className="absolute bottom-2 right-2 w-11 h-11 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl shadow-black/40 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+            className="absolute bottom-2.5 right-2.5 w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl shadow-emerald-500/20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
             title="Play Playlist"
           >
-            <Play className="w-5 h-5 fill-black ml-0.5" />
+            <Play className="w-4 h-4 fill-black ml-0.5" />
           </button>
         )}
       </div>
 
-      <h3 className="font-semibold text-white text-base truncate mb-1">
+      <h3 className="font-semibold text-white text-sm truncate mb-0.5 group-hover:text-emerald-400 transition-colors">
         {playlist.name}
       </h3>
-      <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">
-        {playlist.description || `${trackCount} tracks`}
+      <p className="text-xs text-neutral-400 truncate">
+        {playlist.description || `${trackCount} songs`}
       </p>
     </div>
   );

@@ -1,22 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Check, Sparkles, User } from "lucide-react";
+import { X, Check, Sparkles } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { AVATAR_OPTIONS } from "@/lib/avatars";
 
 interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const AVATAR_OPTIONS = [
-  "https://api.dicebear.com/7.x/bottts/svg?seed=music1",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=rock2",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=jazz3",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=lofi4",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=techno5",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=hiphop6",
-];
 
 export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
   const { user, updateUser } = usePlayer();

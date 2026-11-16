@@ -174,8 +174,8 @@ export function ArtistView({ id }: { id: string }) {
                 </div>
 
                 <div className="text-center sm:text-left flex-1 min-w-0">
-                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-neutral-300">ARTIST</p>
-                  <h1 className="text-2xl sm:text-5xl font-black text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">ARTIST</p>
+                  <h1 className="font-display text-3xl sm:text-5xl font-bold text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
                     {artist.title}
                   </h1>
                   <p className="text-sm text-neutral-300">

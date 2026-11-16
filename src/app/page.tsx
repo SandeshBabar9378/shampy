@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Play,
   Pause,
@@ -19,12 +19,17 @@ import {
   ArrowUpDown,
   ListEnd,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
 import { Player } from "@/components/Player";
+import { RightPanel } from "@/components/RightPanel";
 import { TrackRow } from "@/components/TrackRow";
 import { PlaylistCard } from "@/components/PlaylistCard";
 import { UserProfileModal } from "@/components/UserProfileModal";
@@ -47,6 +52,13 @@ const SEARCH_PILLS = [
   "Romantic",
   "Party",
 ];
+
+// Cinematic carousel per-offset values (index = distance from the active cover).
+const CAROUSEL_SCALE = [1, 0.96, 0.9, 0.82];
+const CAROUSEL_DIM = [0, 0.15, 0.28, 0.4];
+const CAROUSEL_ROTATE_Y = [0, 53, 58, 63];
+// Horizontal distance from the exact center as a fraction of the container width.
+const CAROUSEL_X_FRACTION = [0, 0.23, 0.37, 0.45];
 
 const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
   Hindi: [
@@ -100,6 +112,8 @@ export default function Home() {
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [languagePreference, setLanguagePreference] = useState<string>("Hindi");
+  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
 
   // Dynamic greeting + recently played + language preference (SSR-safe, runs only after mount)
@@ -141,7 +155,7 @@ export default function Home() {
       .then((data) => {
         const rawTracks = Array.isArray(data) ? data : data.tracks || [];
         if (rawTracks.length > 0) {
-          const mapped: Track[] = rawTracks.map((item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number }) => {
+          const mapped: Track[] = rawTracks.map((item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }) => {
             const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
             const cover = item.thumbnail || item.coverUrl || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : "/placeholder.svg");
             return {
@@ -152,6 +166,7 @@ export default function Home() {
               coverUrl: cover,
               duration: item.duration || 180,
               youtubeId: vid,
+              artistId: item.artistId,
             };
           });
           setHomeTracks(mapped);
@@ -351,10 +366,10 @@ export default function Home() {
       fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
         .then((res) => res.json())
         .then((data) => {
-          const rawTracks: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number }[] = Array.isArray(data)
+          const rawTracks: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }[] = Array.isArray(data)
             ? data
             : data.tracks || [];
-          const toTrack = (item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number }): Track => {
+          const toTrack = (item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }): Track => {
             const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
             return {
               id: vid || item.id || "",
@@ -364,6 +379,7 @@ export default function Home() {
               coverUrl: item.thumbnail || item.coverUrl || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : "/placeholder.svg"),
               duration: item.duration || 180,
               youtubeId: vid,
+              artistId: item.artistId,
             };
           };
           const mappedTracks: Track[] = rawTracks.map(toTrack);
@@ -521,8 +537,64 @@ export default function Home() {
     };
   }, [likedTracks, recentlyPlayed, languagePreference, homeTracks, recommendations]);
 
+  // Home data (the "All" feed — there is no mood filtering anymore).
+  const displayHomeTracks = homeTracks;
+  const displayPopularTracks = homeTracks.slice(0, 10);
+  const displayMostPlayed = recentlyPlayed.length > 0 ? recentlyPlayed.slice(0, 8) : homeTracks.slice(0, 8);
+  const displayRecentlyPlayed = recentlyPlayed;
+  const displayPlaylists = communityHomePlaylists;
+
+  // Cinematic carousel: auto-advance, hover pause, tab visibility, reduced motion.
+  const [carouselHovered, setCarouselHovered] = useState(false);
+  const [carouselTabVisible, setCarouselTabVisible] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  // Bumped on every interaction so the 4s auto-advance restarts.
+  const [carouselResetKey, setCarouselResetKey] = useState(0);
+  const restartCarouselTimer = () => setCarouselResetKey((key) => key + 1);
+
+  // Measured carousel area, used to size/position the covers in pixels.
+  const carouselAreaRef = useRef<HTMLDivElement | null>(null);
+  const [carouselBox, setCarouselBox] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setPrefersReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const updateVisibility = () => setCarouselTabVisible(!document.hidden);
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
+  // Keep the pixel box in sync with the responsive carousel area.
+  useEffect(() => {
+    const element = carouselAreaRef.current;
+    if (!element) return;
+    const measure = () =>
+      setCarouselBox({ width: element.clientWidth, height: element.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [currentView, displayHomeTracks.length]);
+
+  const carouselCount = Math.min(9, displayHomeTracks.length);
+
+  useEffect(() => {
+    if (prefersReducedMotion || !carouselTabVisible || carouselHovered || carouselCount <= 1) return;
+    const id = window.setInterval(() => {
+      setCarouselIndex((prev) => (prev + 1) % carouselCount);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [prefersReducedMotion, carouselTabVisible, carouselHovered, carouselCount, carouselIndex, carouselResetKey]);
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-black text-white">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#08090a] text-white shubhu-radial-bg">
       {/* 1. Left Sidebar */}
       <Sidebar
         currentView={currentView}
@@ -534,10 +606,11 @@ export default function Home() {
         }}
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
+        onOpenSettings={() => router.push("/settings")}
       />
 
       {/* 2. Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-black">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
         <Navbar
           searchQuery={searchQuery}
           onSearchChange={(q) => {
@@ -549,52 +622,451 @@ export default function Home() {
         />
 
         {/* Scrollable Viewport */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-32 scrollbar-thin scrollbar-thumb-neutral-800">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           {/* ===================== HOME VIEW ===================== */}
           {currentView === "home" && (
             <div className="space-y-8 animate-in fade-in duration-200">
               {/* Header Greeting */}
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-3xl font-extrabold tracking-tight text-white">
+                <div className="flex items-center justify-between mb-6">
+                  <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-white">
                     {greeting}
                   </h1>
                 </div>
 
-                {/* Recently Played — only if array is non-empty */}
-                {recentlyPlayed.length > 0 && (
-                  <div className="mb-6">
-                    <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                      <Clock className="w-5 h-5 text-emerald-400" />
-                      Recently Played
-                    </h2>
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {recentlyPlayed.map((track) => (
-                        <div
-                          key={track.id}
-                          onClick={() => {
-                            // Play song and auto-build queue from similar songs (not sequential recently played)
-                            playTrack(track);
-                          }}
-                          className="shrink-0 w-36 cursor-pointer group"
-                        >
-                          <img
-                            src={
-                              track.coverUrl ||
-                              (track.youtubeId ? `https://i.ytimg.com/vi/${track.youtubeId}/hqdefault.jpg` : "/placeholder.svg")
-                            }
-                            alt={track.title}
-                            crossOrigin="anonymous"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg";
+                {/* Trending Carousel / "Top songs right now" Box */}
+                {displayHomeTracks.length > 0 && (() => {
+                  const carouselTracks = displayHomeTracks.slice(0, 9);
+                  const total = carouselTracks.length;
+                  const activeIdx = ((carouselIndex % total) + total) % total;
+                  // Center cover: area height minus ~48px, capped at 30% of the container width.
+                  const centerSize =
+                    carouselBox.width > 0 && carouselBox.height > 0
+                      ? Math.min(carouselBox.height - 48, carouselBox.width * 0.3)
+                      : 220;
+                  const containerWidth = carouselBox.width || 900;
+                  // At most 7 ambient layers: the visible tracks within +/-3 of the center.
+                  const ambientLayers = carouselTracks
+                    .map((track, idx) => {
+                      const rawOffset = idx - activeIdx;
+                      const offset =
+                        rawOffset > total / 2
+                          ? rawOffset - total
+                          : rawOffset < -total / 2
+                          ? rawOffset + total
+                          : rawOffset;
+                      return { track, offset };
+                    })
+                    .filter((entry) => Math.abs(entry.offset) <= 3);
+                  const dotCount = Math.min(7, total);
+                  const activeDot =
+                    total <= 7
+                      ? activeIdx
+                      : Math.round((activeIdx / Math.max(1, total - 1)) * (dotCount - 1));
+                  const transitionTiming = prefersReducedMotion
+                    ? "none"
+                    : "transform 800ms cubic-bezier(0.22, 1, 0.36, 1), opacity 800ms cubic-bezier(0.22, 1, 0.36, 1)";
+
+                  return (
+                    <div
+                      className="mb-8 relative overflow-hidden rounded-[28px] border border-white/[0.06] shadow-2xl"
+                      style={{
+                        background:
+                          "radial-gradient(120% 130% at 50% 115%, rgba(76, 29, 149, 0.38) 0%, rgba(17, 20, 31, 0.94) 55%, rgba(10, 12, 18, 0.99) 100%)",
+                      }}
+                      onMouseEnter={() => setCarouselHovered(true)}
+                      onMouseLeave={() => setCarouselHovered(false)}
+                    >
+                      {/* Ambient color layers: one per visible song (max 7), blurred cover art */}
+                      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+                        {ambientLayers.map(({ track, offset }) => (
+                          <div
+                            key={`ambient-${track.id}`}
+                            className="absolute inset-0"
+                            style={{
+                              backgroundImage: track.coverUrl ? `url("${track.coverUrl}")` : undefined,
+                              backgroundSize: "140% 140%",
+                              backgroundPosition: "center",
+                              filter: "blur(70px) saturate(1.4)",
+                              opacity: offset === 0 ? 0.35 : 0,
+                              transition: prefersReducedMotion
+                                ? "none"
+                                : "opacity 800ms cubic-bezier(0.22, 1, 0.36, 1)",
                             }}
-                            className="w-36 h-36 rounded-xl object-cover mb-2 group-hover:opacity-80 transition-opacity shadow-lg"
                           />
-                          <p className="text-xs font-semibold text-white truncate">{track.title}</p>
-                          <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
+                        ))}
+                      </div>
+                      {/* Dark overlay so text stays readable above the ambient tint */}
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background:
+                            "linear-gradient(180deg, rgba(8, 10, 16, 0.82) 0%, rgba(8, 10, 16, 0.52) 42%, rgba(8, 10, 16, 0.9) 100%)",
+                        }}
+                      />
+                      {/* Faint purple bottom glow, blue right glow, subtle light behind the center */}
+                      <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 w-[70%] h-64 rounded-full bg-fuchsia-600/20 blur-[90px] pointer-events-none" />
+                      <div className="absolute top-1/2 -right-24 -translate-y-1/2 w-64 h-[70%] rounded-full bg-blue-600/15 blur-[90px] pointer-events-none" />
+                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[46%] h-[62%] rounded-full bg-white/[0.05] blur-3xl pointer-events-none" />
+
+                      {/* Header */}
+                      <div className="relative z-10 px-5 pt-5 sm:px-6 sm:pt-6">
+                        <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                          Top songs right now
+                        </h2>
+                        <p className="text-xs text-neutral-400 mt-1">
+                          Curated daily based on real-time stream velocity
+                        </p>
+                      </div>
+
+                      {/* Outer clipper (clips the outer covers at the card edge) */}
+                      <div
+                        ref={carouselAreaRef}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowLeft") {
+                            e.preventDefault();
+                            restartCarouselTimer();
+                            setCarouselIndex((prev) => (prev - 1 + total) % total);
+                          } else if (e.key === "ArrowRight") {
+                            e.preventDefault();
+                            restartCarouselTimer();
+                            setCarouselIndex((prev) => (prev + 1) % total);
+                          }
+                        }}
+                        className="shubhu-carousel-stage relative z-10 mt-3 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-emerald-400/30"
+                      >
+                        {/* Faint ground reflection / shadow under the row */}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[64%] h-10 rounded-[100%] bg-black/50 blur-2xl pointer-events-none" />
+                        {/* Soft glow behind the center cover */}
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[44%] h-[58%] rounded-full bg-emerald-400/[0.06] blur-3xl pointer-events-none" />
+
+                        {/* Perspective element */}
+                        <div className="absolute inset-0" style={{ perspective: "1400px" }}>
+                          {/* 3D stage — must NOT have overflow hidden */}
+                          <div className="absolute inset-0" style={{ transformStyle: "preserve-3d" }}>
+                            {carouselTracks.map((track, idx) => {
+                              const rawOffset = idx - activeIdx;
+                              const offset =
+                                rawOffset > total / 2
+                                  ? rawOffset - total
+                                  : rawOffset < -total / 2
+                                  ? rawOffset + total
+                                  : rawOffset;
+                              const distance = Math.abs(offset);
+                              const level = Math.min(3, distance);
+                              const isCenter = offset === 0;
+                              const isHidden = distance > 3;
+                              const scale = CAROUSEL_SCALE[level];
+                              // Left covers tilt with a positive angle, right covers negative.
+                              const rotateY = -Math.sign(offset) * CAROUSEL_ROTATE_Y[level];
+                              const translateX =
+                                Math.sign(offset) * CAROUSEL_X_FRACTION[level] * containerWidth;
+
+                              return (
+                                <div
+                                  key={track.id}
+                                  onClick={() => {
+                                    restartCarouselTimer();
+                                    if (isCenter) {
+                                      playTrack(track, carouselTracks);
+                                    } else {
+                                      setCarouselIndex(idx);
+                                    }
+                                  }}
+                                  className={`absolute left-1/2 top-1/2 select-none ${
+                                    isHidden ? "pointer-events-none" : "cursor-pointer"
+                                  }`}
+                                  style={{
+                                    width: centerSize,
+                                    height: centerSize,
+                                    borderRadius: 28,
+                                    transform: `translate(-50%, -50%) translateX(${translateX}px) translateZ(${
+                                      -distance * 60
+                                    }px) rotateY(${rotateY}deg) scale(${scale})`,
+                                    opacity: isHidden ? 0 : 1,
+                                    zIndex: 30 - distance,
+                                    willChange: "transform",
+                                    transition: transitionTiming,
+                                  }}
+                                >
+                                  <div
+                                    className={`relative w-full h-full overflow-hidden border ${
+                                      isCenter
+                                        ? "border-emerald-500/40 shadow-[0_32px_64px_rgba(0,0,0,0.6)]"
+                                        : "border-white/10 shadow-[0_24px_48px_rgba(0,0,0,0.45)]"
+                                    }`}
+                                    style={{ borderRadius: 28 }}
+                                  >
+                                    <img
+                                      src={track.coverUrl || "/placeholder.svg"}
+                                      alt={track.title}
+                                      crossOrigin="anonymous"
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => {
+                                        e.currentTarget.src = "/placeholder.svg";
+                                      }}
+                                      className="w-full h-full object-cover"
+                                    />
+
+                                    {/* Per-offset dim overlay (no CSS filter animation) */}
+                                    <div
+                                      className="absolute inset-0 pointer-events-none bg-black"
+                                      style={{
+                                        opacity: CAROUSEL_DIM[level],
+                                        transition: prefersReducedMotion
+                                          ? "none"
+                                          : "opacity 800ms cubic-bezier(0.22, 1, 0.36, 1)",
+                                      }}
+                                    />
+
+                                    {/* Center cover only: gradient, real title/artist, green play */}
+                                    {isCenter && (
+                                      <>
+                                        <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                                        <div className="absolute inset-x-0 bottom-0 z-10 p-5 pr-[84px]">
+                                          <h3 className="font-serif font-bold text-white text-[22px] sm:text-[26px] leading-tight truncate">
+                                            {track.title}
+                                          </h3>
+                                          <p className="text-[14px] text-white/80 truncate mt-1">
+                                            {track.artist}
+                                          </p>
+                                        </div>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            restartCarouselTimer();
+                                            playTrack(track, carouselTracks);
+                                          }}
+                                          className="absolute bottom-[18px] right-[18px] z-20 w-[52px] h-[52px] rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                                          title="Play"
+                                        >
+                                          <Play className="w-5 h-5 fill-black ml-0.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Controls: prev, dots, next — one centered compact row */}
+                      <div className="relative z-10 flex items-center justify-center gap-3 px-5 pt-4 pb-5 sm:px-6">
+                        <button
+                          onClick={() => {
+                            restartCarouselTimer();
+                            setCarouselIndex((prev) => (prev - 1 + total) % total);
+                          }}
+                          className="w-9 h-9 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors"
+                          title="Previous song"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          {Array.from({ length: dotCount }).map((_, i) => {
+                            const isActive = i === activeDot;
+                            return (
+                              <button
+                                key={`dot-${i}`}
+                                onClick={() => {
+                                  restartCarouselTimer();
+                                  const target =
+                                    total <= 7
+                                      ? i
+                                      : Math.round((i / Math.max(1, dotCount - 1)) * (total - 1));
+                                  setCarouselIndex(target);
+                                }}
+                                className={`rounded-full cursor-pointer transition-all duration-300 ${
+                                  isActive
+                                    ? "w-[22px] h-1.5 bg-emerald-500"
+                                    : "w-1.5 h-1.5 bg-white/25 hover:bg-white/40"
+                                }`}
+                                title={`Slide ${i + 1}`}
+                              />
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            restartCarouselTimer();
+                            setCarouselIndex((prev) => (prev + 1) % total);
+                          }}
+                          className="w-9 h-9 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors"
+                          title="Next song"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Popular songs */}
+                {displayPopularTracks.length > 0 && (
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-display text-xl font-bold text-white">Popular songs</h2>
+                        <p className="text-xs text-neutral-400 mt-0.5">Top trending songs right now</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const container = document.getElementById("popular-songs-scroll");
+                            if (container) container.scrollBy({ left: -300, behavior: "smooth" });
+                          }}
+                          className="w-8 h-8 rounded-full bg-neutral-900 border border-white/10 text-neutral-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                          title="Previous"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const container = document.getElementById("popular-songs-scroll");
+                            if (container) container.scrollBy({ left: 300, behavior: "smooth" });
+                          }}
+                          className="w-8 h-8 rounded-full bg-neutral-900 border border-white/10 text-neutral-300 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                          title="Next"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      id="popular-songs-scroll"
+                      className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide scroll-smooth"
+                    >
+                      {displayPopularTracks.map((track) => (
+                        <div
+                          key={`pop-${track.id}`}
+                          onClick={() => playTrack(track, displayPopularTracks)}
+                          className="shrink-0 w-36 p-3 bg-neutral-900/60 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-md"
+                        >
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2 bg-neutral-800">
+                            <img
+                              src={track.coverUrl || "/placeholder.svg"}
+                              alt={track.title}
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg";
+                              }}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                              <Play className="w-4 h-4 fill-black ml-0.5" />
+                            </div>
+                          </div>
+                          <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                            {track.title}
+                          </p>
+                          <p className="text-[11px] text-neutral-400 truncate mt-0.5">{track.artist}</p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* "Your Most Played" Section */}
+                {displayMostPlayed.length > 0 && (
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-emerald-400" />
+                          Your Most Played
+                        </h2>
+                        <p className="text-xs text-neutral-400">Most replayed tracks by you</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                      {displayMostPlayed.map((track, idx) => (
+                        <div
+                          key={`most-played-${track.id}-${idx}`}
+                          onClick={() => playTrack(track, displayMostPlayed)}
+                          className="shrink-0 w-36 p-3 bg-neutral-900/60 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-md relative"
+                        >
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2 bg-neutral-800">
+                            <img
+                              src={track.coverUrl || "/placeholder.svg"}
+                              alt={track.title}
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg";
+                              }}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-emerald-400 text-xs font-mono font-bold border border-emerald-500/30">
+                              #{idx + 1}
+                            </div>
+                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                              <Play className="w-4 h-4 fill-black ml-0.5" />
+                            </div>
+                          </div>
+                          <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400">
+                            {track.title}
+                          </p>
+                          <p className="text-[11px] text-neutral-400 truncate">{track.artist}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recently Played — with PLAYING / PAUSED badge */}
+                {displayRecentlyPlayed.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-emerald-400" />
+                          Recently Played
+                        </h2>
+                        <p className="text-xs text-neutral-400">Jump back into what you were listening to</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {displayRecentlyPlayed.map((track) => {
+                        const isCurrent = currentTrack?.id === track.id;
+                        return (
+                          <div
+                            key={track.id}
+                            onClick={() => {
+                              playTrack(track, displayRecentlyPlayed);
+                            }}
+                            className="shrink-0 w-36 cursor-pointer group relative"
+                          >
+                            <div className="relative w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-800 shadow-lg">
+                              <img
+                                src={
+                                  track.coverUrl ||
+                                  (track.youtubeId ? `https://i.ytimg.com/vi/${track.youtubeId}/hqdefault.jpg` : "/placeholder.svg")
+                                }
+                                alt={track.title}
+                                crossOrigin="anonymous"
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  e.currentTarget.src = "/placeholder.svg";
+                                }}
+                                className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                              />
+                              {isCurrent && (
+                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-emerald-500/90 text-black text-[10px] font-bold tracking-wider shadow">
+                                  {isPlaying ? "PLAYING" : "PAUSED"}
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs font-semibold text-white truncate">{track.title}</p>
+                            <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -681,38 +1153,42 @@ export default function Home() {
               </div>
 
               {/* Featured Curated Playlists Cards — Prioritized by language */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Compass className="w-5 h-5 text-emerald-400" />
-                    <h2 className="text-xl font-bold text-white">Featured Playlists</h2>
+              {
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Compass className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-xl font-bold text-white">Featured Playlists</h2>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {prioritizedPlaylists.map((pl) => (
+                      <PlaylistCard
+                        key={pl.id}
+                        playlist={pl}
+                        onClick={() => router.push(`/playlist/${pl.playlistId}`)}
+                        onPlay={() => router.push(`/playlist/${pl.playlistId}`)}
+                      />
+                    ))}
                   </div>
                 </div>
+              }
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {prioritizedPlaylists.map((pl) => (
-                    <PlaylistCard
-                      key={pl.id}
-                      playlist={pl}
-                      onClick={() => router.push(`/playlist/${pl.playlistId}`)}
-                      onPlay={() => router.push(`/playlist/${pl.playlistId}`)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Community Playlists Row (hidden if empty) */}
-              {communityHomePlaylists.length > 0 && (
+              {/* Community / Mood Playlists Row (hidden if empty) */}
+              {displayPlaylists.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Music className="w-5 h-5 text-emerald-400" />
-                      <h2 className="text-xl font-bold text-white">Community Playlists</h2>
+                      <h2 className="text-xl font-bold text-white">
+                        Community Playlists
+                      </h2>
                     </div>
                   </div>
 
                   <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                    {communityHomePlaylists.map((pl) => (
+                    {displayPlaylists.map((pl) => (
                       <div
                         key={pl.browseId}
                         onClick={() => router.push(`/playlist/${pl.browseId.replace(/^VL/, "")}`)}
@@ -747,29 +1223,33 @@ export default function Home() {
               )}
 
               {/* Trending Chartbusters Table */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-emerald-400" />
-                    <h2 className="text-xl font-bold text-white">Trending Chartbusters</h2>
+              {displayHomeTracks.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Flame className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-xl font-bold text-white">
+                        Trending Chartbusters
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSearchQuery("trending hits 2026");
+                        setCurrentView("search");
+                      }}
+                      className="text-xs font-semibold text-neutral-400 hover:text-white cursor-pointer"
+                    >
+                      Show all
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSearchQuery("trending hits 2026");
-                      setCurrentView("search");
-                    }}
-                    className="text-xs font-semibold text-neutral-400 hover:text-white cursor-pointer"
-                  >
-                    Show all
-                  </button>
-                </div>
 
-                <div className="bg-neutral-950/40 rounded-xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
-                  {homeTracks.slice(0, 8).map((track, i) => (
-                    <TrackRow key={track.id} track={track} index={i} queue={homeTracks} />
-                  ))}
+                  <div className="bg-neutral-950/40 rounded-xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
+                    {displayHomeTracks.slice(0, 8).map((track, i) => (
+                      <TrackRow key={track.id} track={track} index={i} queue={displayHomeTracks} />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Made For You / Smart Recommendations */}
               {recommendations.length > 0 && (
@@ -792,21 +1272,14 @@ export default function Home() {
           {/* ===================== SEARCH VIEW ===================== */}
           {currentView === "search" && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              {/* Category Pills */}
-              <div className="flex flex-wrap items-center gap-2 pb-2">
-                {SEARCH_PILLS.map((pill) => (
-                  <button
-                    key={pill}
-                    onClick={() => setSearchQuery(pill)}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                      searchQuery.toLowerCase() === pill.toLowerCase()
-                        ? "bg-white text-black shadow-md"
-                        : "bg-neutral-800 hover:bg-neutral-700 text-white"
-                    }`}
-                  >
-                    {pill}
-                  </button>
-                ))}
+              {/* Header Title in serif */}
+              <div>
+                <h1 className="font-display text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                  Search
+                </h1>
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                  Find songs, artists, albums, and curated playlists
+                </p>
               </div>
 
               {/* Loading State */}
@@ -887,7 +1360,7 @@ export default function Home() {
                             onError={(e) => {
                               e.currentTarget.src = "/placeholder.svg";
                             }}
-                            className="w-28 h-28 rounded-xl object-cover shadow-xl mb-4"
+                            className="w-40 h-40 rounded-2xl object-cover shadow-2xl mb-4"
                           />
                           <h2 className="text-2xl font-bold text-white group-hover:text-emerald-400 transition-colors">
                             {topResult.title}
@@ -1055,47 +1528,79 @@ export default function Home() {
                 );
               })()}
 
-              {/* Empty state when no search query */}
+              {/* Empty state when no search query: Browse by Mood */}
               {!isSearching &&
                 searchResults.length === 0 &&
                 searchTopResult === null &&
                 searchArtists.length === 0 &&
                 searchAlbums.length === 0 &&
                 searchPlaylists.length === 0 && (
-                <div>
-                  <h2 className="text-xl font-bold text-white mb-4">Browse All Categories</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {FEATURED_PLAYLISTS.map((pl, i) => {
-                      const colors = [
-                        "from-purple-600 to-indigo-900",
-                        "from-rose-600 to-pink-900",
-                        "from-amber-600 to-yellow-900",
-                        "from-emerald-600 to-teal-900",
-                        "from-blue-600 to-cyan-900",
-                        "from-orange-600 to-red-900",
-                      ];
-                      return (
-                        <div
-                          key={pl.id}
-                          onClick={() => router.push(`/playlist/${pl.playlistId}`)}
-                          className={`aspect-square p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
+                <div className="space-y-8">
+                  {/* Browse by mood */}
+                  <div>
+                    <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-4">
+                      Browse by Mood
+                    </h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {[
+                        { name: "Chill", query: "chill lofi hits", color: "from-blue-700 to-indigo-900" },
+                        { name: "Romantic", query: "romantic hindi songs", color: "from-rose-700 to-pink-900" },
+                        { name: "Party", query: "party dance club hits", color: "from-amber-600 to-red-900" },
+                        { name: "Workout", query: "high energy workout motivation", color: "from-emerald-700 to-teal-950" },
+                        { name: "Focus", query: "deep focus instrumental study", color: "from-purple-700 to-slate-900" },
+                        { name: "Heartbreak", query: "sad hindi heartbreak songs", color: "from-sky-800 to-blue-950" },
+                        { name: "Retro", query: "90s 2000s retro classic bollywood", color: "from-yellow-700 to-orange-900" },
+                        { name: "English Hits", query: "top english pop hits 2026", color: "from-violet-700 to-purple-950" },
+                      ].map((mood) => (
+                        <button
+                          key={mood.name}
+                          onClick={() => setSearchQuery(mood.query)}
+                          className={`p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
                         >
-                          <span className="font-bold text-lg text-white leading-tight">
-                            {pl.name}
+                          <span className="font-display font-bold text-lg text-white block">
+                            {mood.name}
                           </span>
-                          <img
-                            src={pl.coverUrl}
-                            alt={pl.name}
-                            crossOrigin="anonymous"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
-                            }}
-                            className="w-16 h-16 rounded-md object-cover absolute -bottom-2 -right-2 shadow-2xl rotate-15 group-hover:rotate-0 group-hover:scale-110 transition-all duration-300"
-                          />
-                        </div>
-                      );
-                    })}
+                          <span className="text-xs text-white/70 block mt-1">Tap to explore</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="font-display text-xl font-bold text-white mb-4">Browse All Categories</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {FEATURED_PLAYLISTS.map((pl, i) => {
+                        const colors = [
+                          "from-purple-600 to-indigo-900",
+                          "from-rose-600 to-pink-900",
+                          "from-amber-600 to-yellow-900",
+                          "from-emerald-600 to-teal-900",
+                          "from-blue-600 to-cyan-900",
+                          "from-orange-600 to-red-900",
+                        ];
+                        return (
+                          <div
+                            key={pl.id}
+                            onClick={() => router.push(`/playlist/${pl.playlistId}`)}
+                            className={`aspect-square p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
+                          >
+                            <span className="font-bold text-lg text-white leading-tight">
+                              {pl.name}
+                            </span>
+                            <img
+                              src={pl.coverUrl}
+                              alt={pl.name}
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+                              }}
+                              className="w-16 h-16 rounded-md object-cover absolute -bottom-2 -right-2 shadow-2xl rotate-15 group-hover:rotate-0 group-hover:scale-110 transition-all duration-300"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1379,6 +1884,12 @@ export default function Home() {
           )}
         </main>
       </div>
+
+      {/* Right "Now Playing" Panel */}
+      <RightPanel
+        isOpen={showRightPanel}
+        onClose={() => setShowRightPanel(false)}
+      />
 
       {/* 3. Bottom Player Bar */}
       <Player />

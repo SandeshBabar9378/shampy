@@ -6,6 +6,7 @@ export interface Track {
   coverUrl: string;
   duration: number; // in seconds
   youtubeId?: string;
+  artistId?: string;
   previewUrl?: string;
   genre?: string;
   language?: string;

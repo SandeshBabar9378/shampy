@@ -8,6 +8,7 @@ interface FormattedSearchResult {
   album: string;
   thumbnail: string;
   duration: number;
+  artistId?: string;
 }
 
 interface FormattedPlaylist {
@@ -266,6 +267,12 @@ function parseResponsiveItem(value: unknown): FormattedSearchResult | null {
   const artist = metadata[0] || "";
   const album = metadata[1] || "";
 
+  // Extract the artist's channel browseId from subtitle runs (UC… or FEmusic…)
+  const artistId = subtitleRuns.find((run) => {
+    const bId = asString(run?.navigationEndpoint?.browseEndpoint?.browseId);
+    return bId.startsWith("UC") || bId.startsWith("FEmusic");
+  })?.navigationEndpoint?.browseEndpoint?.browseId;
+
   const thumbnails = asArray(
     item.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails,
   ) as { url?: string }[];
@@ -281,6 +288,7 @@ function parseResponsiveItem(value: unknown): FormattedSearchResult | null {
       thumbnail ||
       "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format",
     duration: parseDuration(durationText),
+    artistId,
   };
 }
 

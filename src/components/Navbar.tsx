@@ -22,14 +22,14 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
   };
 
   return (
-    <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-900/40">
+    <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/60 backdrop-blur-xl border-b border-white/5">
       {/* Mobile: Top left Shubhu logo icon */}
       <div className="sm:hidden flex items-center gap-2 shrink-0">
-        <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-lg shrink-0">
+        <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg shadow-emerald-500/20 shrink-0">
           <Music2 className="w-4 h-4 fill-black" />
         </div>
         {!showSearch && (
-          <span className="font-bold text-white text-lg tracking-tight">Shubhu</span>
+          <span className="font-display font-bold text-white text-lg tracking-tight">Shubhu</span>
         )}
       </div>
 
@@ -41,8 +41,8 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="What do you want to play?"
-            className="w-full bg-neutral-900 text-white placeholder-neutral-500 pl-10 pr-4 py-2 rounded-full text-sm border border-transparent focus:border-neutral-700 focus:outline-none focus:bg-neutral-800 transition-all"
+            placeholder="Search songs, artists, albums…"
+            className="w-full bg-neutral-900/70 text-white placeholder-neutral-400 pl-10 pr-4 py-2 rounded-xl text-sm border border-white/5 focus:border-emerald-500/50 focus:outline-none focus:bg-neutral-900 transition-all shadow-inner"
           />
         </div>
       </div>

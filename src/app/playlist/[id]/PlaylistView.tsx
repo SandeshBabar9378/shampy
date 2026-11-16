@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ListMusic, Play, Plus, Check, MoreVertical, Home, Search, Library } from "lucide-react";
+import { ArrowLeft, ListMusic, Play, Plus, Check, MoreVertical, Home, Search, Library, Shuffle } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Player } from "@/components/Player";
 import { TrackRow } from "@/components/TrackRow";
@@ -140,8 +140,8 @@ export function PlaylistView({ id }: { id: string }) {
                 </div>
 
                 <div className="text-center sm:text-left flex-1 min-w-0">
-                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-neutral-300">PLAYLIST</p>
-                  <h1 className="text-2xl sm:text-5xl font-black text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
+                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">PLAYLIST</p>
+                  <h1 className="font-display text-3xl sm:text-5xl font-bold text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
                     {playlist.title}
                   </h1>
                   <p className="text-sm text-neutral-300 flex items-center justify-center sm:justify-start gap-2">
@@ -189,16 +189,28 @@ export function PlaylistView({ id }: { id: string }) {
                 </div>
               </div>
 
-              {/* Play action */}
+              {/* Play & Shuffle actions */}
               <div className="flex items-center gap-4">
                 {tracks.length > 0 && (
-                  <button
-                    onClick={() => playTrack(tracks[0], tracks)}
-                    className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
-                    title="Play Playlist"
-                  >
-                    <Play className="w-6 h-6 fill-black ml-0.5" />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => playTrack(tracks[0], tracks)}
+                      className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
+                      title="Play Playlist"
+                    >
+                      <Play className="w-6 h-6 fill-black ml-0.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+                        if (shuffled.length > 0) playTrack(shuffled[0], shuffled);
+                      }}
+                      className="w-11 h-11 rounded-full bg-neutral-900 border border-white/10 text-neutral-300 hover:text-white hover:border-white/20 flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      title="Shuffle Playlist"
+                    >
+                      <Shuffle className="w-5 h-5 text-emerald-400" />
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={handleToggleSave}

@@ -18,6 +18,8 @@ interface KugouCandidate {
   score?: number;
 }
 
+
+
 interface KugouSearchResponse {
   status: number;
   candidates?: KugouCandidate[];
