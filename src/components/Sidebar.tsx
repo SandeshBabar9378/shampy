@@ -31,11 +31,39 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
     { id: "library", label: "Your library", icon: Library },
   ];
 
+  const renderNavItem = ({ id, label, icon: Icon }: (typeof navItems)[number]) => {
+    const active = currentView === id;
+    return (
+      <button
+        key={id}
+        onClick={() => onSelectView(id)}
+        aria-current={active ? "page" : undefined}
+        className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all cursor-pointer ${
+          active
+            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm"
+            : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
+        } ${collapsed ? "justify-center px-0" : ""}`}
+        title={label}
+      >
+        {active && (
+          <span className={`absolute top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-emerald-400 ${collapsed ? "-left-1" : "left-1"}`} />
+        )}
+        <Icon className={`w-5 h-5 shrink-0 ${active ? "text-emerald-400" : ""}`} />
+        {!collapsed && <span>{label}</span>}
+        {collapsed && (
+          <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+            {label}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   return (
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <aside
-        className={`hidden sm:flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-3 shrink-0 rounded-2xl overflow-hidden bg-neutral-950/80 backdrop-blur-xl border border-white/5 shadow-2xl transition-all duration-300 select-none z-20 ${
+        className={`hidden sm:flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-3 shrink-0 rounded-2xl bg-neutral-950/80 backdrop-blur-xl border border-white/5 shadow-2xl transition-all duration-300 select-none z-20 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
@@ -72,29 +100,14 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
 
         {/* Navigation items */}
         <div className="p-2 space-y-1">
-          {navItems.map(({ id, label, icon: Icon }) => {
-            const active = currentView === id;
-            return (
-              <button
-                key={id}
-                onClick={() => onSelectView(id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all cursor-pointer ${
-                  active
-                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-sm"
-                    : "text-neutral-400 hover:text-white hover:bg-white/5"
-                } ${collapsed ? "justify-center px-0" : ""}`}
-                title={label}
-              >
-                <Icon className={`w-5 h-5 shrink-0 ${active ? "text-emerald-400" : ""}`} />
-                {!collapsed && <span>{label}</span>}
-              </button>
-            );
-          })}
+          {navItems.slice(0, 2).map(renderNavItem)}
+          <div className="my-2 border-t border-white/5" role="separator" />
+          {navItems.slice(2).map(renderNavItem)}
         </div>
 
         {/* Separator & Playlists Header */}
         {!collapsed && (
-          <div className="px-4 pt-3 pb-2 flex items-center justify-between border-t border-white/5 mt-1">
+          <div className="px-4 pt-4 pb-2 flex items-center justify-between border-t border-white/5 mt-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 font-mono">
               Your Playlists
             </span>
@@ -109,7 +122,7 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
         )}
 
         {/* Playlists List */}
-        <div className="flex-1 overflow-y-auto px-2 space-y-1 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto px-2 pt-1 pb-3 space-y-1 scrollbar-hide">
           {/* User playlists */}
           {mounted &&
             playlists.map((pl) => {
@@ -119,11 +132,16 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
                 <button
                   key={pl.id}
                   onClick={() => onSelectView(`playlist:${pl.id}`)}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all cursor-pointer group ${
-                    active ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white hover:bg-white/5"
+                  className={`relative w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all cursor-pointer group ${
+                    active
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                      : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
                   } ${collapsed ? "justify-center px-0" : ""}`}
                   title={pl.name}
                 >
+                  {active && (
+                    <span className={`absolute top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-emerald-400 ${collapsed ? "-left-1" : "left-0.5"}`} />
+                  )}
                   <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-neutral-800 shadow-md">
                     <PlaylistCollage
                       tracks={pl.tracks}
@@ -153,11 +171,16 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
                 <button
                   key={sp.id}
                   onClick={() => router.push(`/playlist/${sp.id}`)}
-                  className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all cursor-pointer group ${
-                    active ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white hover:bg-white/5"
+                  className={`relative w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all cursor-pointer group ${
+                    active
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                      : "text-neutral-400 hover:text-white hover:bg-white/5 border border-transparent"
                   } ${collapsed ? "justify-center px-0" : ""}`}
                   title={sp.title}
                 >
+                  {active && (
+                    <span className={`absolute top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-emerald-400 ${collapsed ? "-left-1" : "left-0.5"}`} />
+                  )}
                   <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-neutral-800 shadow-md">
                     {sp.thumbnail ? (
                       <img

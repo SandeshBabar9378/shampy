@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
-import { Track, Playlist, UserProfile, SavedPlaylist } from "@/lib/types";
+import { Track, Playlist, UserProfile, SavedPlaylist, FollowedArtist } from "@/lib/types";
 import { CURATED_TRACKS } from "@/lib/musicProvider";
 import { getSimilarSongs } from "@/lib/similarity";
 import { isValidVideoId } from "@/lib/videoId";
@@ -51,6 +51,7 @@ interface PlayerContextType {
   likedSongIds: Set<string>;
   playlists: Playlist[];
   savedPlaylists: SavedPlaylist[];
+  followedArtists: FollowedArtist[];
   mobileExpanded: boolean;
   playbackRate: number;
   availableRates: number[];
@@ -82,6 +83,7 @@ interface PlayerContextType {
   deletePlaylist: (playlistId: string) => Promise<void>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   toggleSavedPlaylist: (playlist: SavedPlaylist) => void;
+  toggleFollowArtist: (artist: FollowedArtist) => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -153,6 +155,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>(() => {
     if (typeof window === "undefined") return [];
     const stored = lsGetJSON<SavedPlaylist[]>("savedPlaylists", []);
+    return Array.isArray(stored) ? stored : [];
+  });
+
+  // Followed artists (local-only, same storage approach as playlists/likes)
+  const [followedArtists, setFollowedArtists] = useState<FollowedArtist[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = lsGetJSON<FollowedArtist[]>("shubhu_followed_artists", []);
     return Array.isArray(stored) ? stored : [];
   });
 
@@ -965,6 +974,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // ── Follow / unfollow an artist (local-only, de-duplicated by browseId) ───
+  const toggleFollowArtist = (artist: FollowedArtist) => {
+    if (!artist.browseId) return;
+    setFollowedArtists((prev) => {
+      const exists = prev.some((a) => a.browseId === artist.browseId);
+      const updated = exists
+        ? prev.filter((a) => a.browseId !== artist.browseId)
+        : [...prev, {
+            browseId: artist.browseId,
+            name: artist.name,
+            thumbnail: artist.thumbnail,
+          }];
+      lsSet("shubhu_followed_artists", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const playNext = (track: Track) => {
     const playing = currentTrackRef.current;
     if (!playing) {
@@ -1011,7 +1037,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         currentTime, duration, volume, isMuted,
         isShuffle, isRepeat, isResolving,
         user, likedSongIds, playlists, savedPlaylists,
-        mobileExpanded, playbackRate, availableRates,
+        followedArtists, mobileExpanded, playbackRate, availableRates,
         sleepEndsAt, sleepRemainingSeconds, sleepAtEndOfSong, sleepTimerNotice,
         setPlaybackRate, setMobileExpanded, setAppQueue, playNext,
         playTrack, togglePlay, nextTrack, prevTrack,
@@ -1019,6 +1045,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         selectSleepTimer, cancelSleepTimer,
         toggleLike, updateUser, refreshLibrary, createPlaylist, addToPlaylist,
         updatePlaylist, deletePlaylist, removeFromPlaylist, toggleSavedPlaylist,
+        toggleFollowArtist,
       }}
     >
       {children}

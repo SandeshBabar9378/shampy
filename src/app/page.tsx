@@ -10,8 +10,8 @@ import {
   Disc,
   Compass,
   Flame,
-  Clock,
   Plus,
+  UserPlus,
   Settings,
   MoreVertical,
   Pencil,
@@ -39,19 +39,6 @@ import { Track, Playlist } from "@/lib/types";
 import { FEATURED_PLAYLISTS, CURATED_TRACKS } from "@/lib/musicProvider";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { PlaylistCollage } from "@/components/PlaylistCollage";
-
-const SEARCH_PILLS = [
-  "Trending",
-  "Bollywood",
-  "Punjabi",
-  "Lofi",
-  "Hip-Hop",
-  "Arijit Singh",
-  "Karan Aujla",
-  "The Weeknd",
-  "Romantic",
-  "Party",
-];
 
 // Cinematic carousel per-offset values (index = distance from the active cover).
 const CAROUSEL_SCALE = [1, 0.96, 0.9, 0.82];
@@ -87,7 +74,7 @@ const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
 
 export default function Home() {
   const router = useRouter();
-  const { user, playlists, savedPlaylists, likedSongIds, playTrack, currentTrack, isPlaying, togglePlay, queue, setAppQueue, addToPlaylist, deletePlaylist } = usePlayer();
+  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, queue, setAppQueue, addToPlaylist, deletePlaylist } = usePlayer();
 
   const [currentView, setCurrentView] = useState<string>("home");
   const [searchQuery, setSearchQuery] = useState("");
@@ -541,7 +528,6 @@ export default function Home() {
   const displayHomeTracks = homeTracks;
   const displayPopularTracks = homeTracks.slice(0, 10);
   const displayMostPlayed = recentlyPlayed.length > 0 ? recentlyPlayed.slice(0, 8) : homeTracks.slice(0, 8);
-  const displayRecentlyPlayed = recentlyPlayed;
   const displayPlaylists = communityHomePlaylists;
 
   // Cinematic carousel: auto-advance, hover pause, tab visibility, reduced motion.
@@ -945,9 +931,9 @@ export default function Home() {
                         <div
                           key={`pop-${track.id}`}
                           onClick={() => playTrack(track, displayPopularTracks)}
-                          className="shrink-0 w-36 p-3 bg-neutral-900/60 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-md"
+                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
-                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2 bg-neutral-800">
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
                               src={track.coverUrl || "/placeholder.svg"}
                               alt={track.title}
@@ -956,13 +942,14 @@ export default function Home() {
                               onError={(e) => {
                                 e.currentTarget.src = "/placeholder.svg";
                               }}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
-                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-lg opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
                               <Play className="w-4 h-4 fill-black ml-0.5" />
                             </div>
                           </div>
-                          <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                          <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                             {track.title}
                           </p>
                           <p className="text-[11px] text-neutral-400 truncate mt-0.5">{track.artist}</p>
@@ -989,9 +976,9 @@ export default function Home() {
                         <div
                           key={`most-played-${track.id}-${idx}`}
                           onClick={() => playTrack(track, displayMostPlayed)}
-                          className="shrink-0 w-36 p-3 bg-neutral-900/60 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-md relative"
+                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
-                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2 bg-neutral-800">
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
                               src={track.coverUrl || "/placeholder.svg"}
                               alt={track.title}
@@ -1000,73 +987,22 @@ export default function Home() {
                               onError={(e) => {
                                 e.currentTarget.src = "/placeholder.svg";
                               }}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
+                            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                             <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-emerald-400 text-xs font-mono font-bold border border-emerald-500/30">
                               #{idx + 1}
                             </div>
-                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-lg opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
                               <Play className="w-4 h-4 fill-black ml-0.5" />
                             </div>
                           </div>
-                          <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400">
+                          <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                             {track.title}
                           </p>
-                          <p className="text-[11px] text-neutral-400 truncate">{track.artist}</p>
+                          <p className="text-[11px] text-neutral-400 truncate mt-0.5">{track.artist}</p>
                         </div>
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recently Played — with PLAYING / PAUSED badge */}
-                {displayRecentlyPlayed.length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
-                          <Clock className="w-5 h-5 text-emerald-400" />
-                          Recently Played
-                        </h2>
-                        <p className="text-xs text-neutral-400">Jump back into what you were listening to</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {displayRecentlyPlayed.map((track) => {
-                        const isCurrent = currentTrack?.id === track.id;
-                        return (
-                          <div
-                            key={track.id}
-                            onClick={() => {
-                              playTrack(track, displayRecentlyPlayed);
-                            }}
-                            className="shrink-0 w-36 cursor-pointer group relative"
-                          >
-                            <div className="relative w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-800 shadow-lg">
-                              <img
-                                src={
-                                  track.coverUrl ||
-                                  (track.youtubeId ? `https://i.ytimg.com/vi/${track.youtubeId}/hqdefault.jpg` : "/placeholder.svg")
-                                }
-                                alt={track.title}
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
-                                }}
-                                className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
-                              />
-                              {isCurrent && (
-                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-emerald-500/90 text-black text-[10px] font-bold tracking-wider shadow">
-                                  {isPlaying ? "PLAYING" : "PAUSED"}
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-xs font-semibold text-white truncate">{track.title}</p>
-                            <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
-                          </div>
-                        );
-                      })}
                     </div>
                   </div>
                 )}
@@ -1092,9 +1028,9 @@ export default function Home() {
                         <div
                           key={track.id}
                           onClick={() => playTrack(track, madeForYouTracks)}
-                          className="shrink-0 w-[150px] p-3 bg-neutral-900/60 hover:bg-neutral-800/80 rounded-xl cursor-pointer group transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-md hover:shadow-xl"
+                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
-                          <div className="relative w-[126px] h-[126px] mx-auto rounded-lg overflow-hidden mb-3 bg-neutral-800">
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
                               src={
                                 track.coverUrl ||
@@ -1106,16 +1042,17 @@ export default function Home() {
                               onError={(e) => {
                                 e.currentTarget.src = "/placeholder.svg";
                               }}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
-                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                            <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-lg opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
                               <Play className="w-4 h-4 fill-black ml-0.5" />
                             </div>
                           </div>
-                          <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                          <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                             {track.title}
                           </p>
-                          <p className="text-xs text-neutral-400 truncate mt-0.5">{track.artist}</p>
+                          <p className="text-[11px] text-neutral-400 truncate mt-0.5">{track.artist}</p>
                         </div>
                       ))}
                     </div>
@@ -1127,24 +1064,26 @@ export default function Home() {
                     <div
                       key={item.id}
                       onClick={() => router.push(`/playlist/${item.playlistId}`)}
-                      className="group flex items-center bg-neutral-900/60 hover:bg-neutral-800/80 rounded-md overflow-hidden cursor-pointer transition-all border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm"
+                      className="group relative flex items-center bg-neutral-900/40 hover:bg-neutral-800/60 rounded-xl overflow-hidden cursor-pointer transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-lg"
                     >
-                      <img
-                        src={item.coverUrl || "/placeholder.svg"}
-                        alt={item.name}
-                        crossOrigin="anonymous"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          e.currentTarget.src = "/placeholder.svg";
-                        }}
-                        className="w-16 h-16 object-cover shrink-0 shadow-md"
-                      />
-                      <div className="flex-1 px-4 py-2 flex items-center justify-between min-w-0">
-                        <span className="font-bold text-sm text-white truncate group-hover:text-emerald-400 transition-colors">
+                      <div className="relative w-16 h-16 shrink-0 overflow-hidden">
+                        <img
+                          src={item.coverUrl || "/placeholder.svg"}
+                          alt={item.name}
+                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder.svg";
+                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 shadow-md"
+                        />
+                      </div>
+                      <div className="flex-1 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 min-w-0">
+                        <span className="font-semibold text-sm text-white truncate group-hover:text-emerald-400 transition-colors">
                           {item.name}
                         </span>
-                        <div className="w-10 h-10 rounded-full bg-emerald-500 text-black flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all shadow-lg hover:scale-105">
-                          <Play className="w-4 h-4 fill-black ml-0.5" />
+                        <div className="w-9 h-9 shrink-0 rounded-full bg-emerald-500 text-black flex items-center justify-center opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 shadow-lg">
+                          <Play className="w-3.5 h-3.5 fill-black ml-0.5" />
                         </div>
                       </div>
                     </div>
@@ -1193,26 +1132,32 @@ export default function Home() {
                         key={pl.browseId}
                         onClick={() => router.push(`/playlist/${pl.browseId.replace(/^VL/, "")}`)}
                         title={pl.title}
-                        className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
+                        className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 flex flex-col"
                       >
-                        <img
-                          src={pl.thumbnail || "/placeholder.svg"}
-                          alt={pl.title}
-                          crossOrigin="anonymous"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            e.currentTarget.src = "/placeholder.svg";
-                          }}
-                          className="w-28 h-28 rounded-xl object-cover mb-3 shadow-lg group-hover:scale-105 transition-transform"
-                        />
-                        <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400">
+                        <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
+                          <img
+                            src={pl.thumbnail || "/placeholder.svg"}
+                            alt={pl.title}
+                            crossOrigin="anonymous"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              e.currentTarget.src = "/placeholder.svg";
+                            }}
+                            className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                          <div className="absolute bottom-2 right-2 w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-lg opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+                            <Play className="w-4 h-4 fill-black ml-0.5" />
+                          </div>
+                        </div>
+                        <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                           {pl.title}
                         </p>
-                        <p className="text-xs text-neutral-400 truncate mt-0.5">
+                        <p className="text-[11px] text-neutral-400 truncate mt-0.5">
                           {pl.author || "Playlist"}
                         </p>
                         {pl.isCommunity && (
-                          <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                          <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-1">
                             Community playlist
                           </span>
                         )}
@@ -1347,31 +1292,35 @@ export default function Home() {
                     {topResult && (
                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                       {/* Top Result Card */}
-                      <div className="lg:col-span-2 bg-neutral-900/40 hover:bg-neutral-900/70 border border-neutral-800/60 p-6 rounded-2xl flex flex-col justify-between group transition-colors">
-                        <div>
+                      <div className="lg:col-span-2 relative bg-neutral-900/40 hover:bg-neutral-900/70 border border-neutral-800/60 hover:border-neutral-700/60 p-6 rounded-2xl flex flex-col justify-between group transition-all duration-300 shadow-sm hover:shadow-xl overflow-hidden">
+                        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                        <div className="relative">
                           <p className="text-xs uppercase font-bold text-neutral-400 tracking-wider mb-4">
                             Top Result
                           </p>
-                          <img
-                            src={topResult.coverUrl || "/placeholder.svg"}
-                            alt={topResult.title}
-                            crossOrigin="anonymous"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg";
-                            }}
-                            className="w-40 h-40 rounded-2xl object-cover shadow-2xl mb-4"
-                          />
-                          <h2 className="text-2xl font-bold text-white group-hover:text-emerald-400 transition-colors">
+                          <div className="relative w-40 h-40 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-2xl mb-5 bg-neutral-800">
+                            <img
+                              src={topResult.coverUrl || "/placeholder.svg"}
+                              alt={topResult.title}
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg";
+                              }}
+                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
+                          </div>
+                          <h2 className="text-2xl sm:text-3xl font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
                             {topResult.title}
                           </h2>
-                          <p className="text-sm text-neutral-400 mt-1">
+                          <p className="text-sm text-neutral-400 mt-1.5 truncate">
                             {topResult.artist} • <span className="text-neutral-500">{topResult.album}</span>
                           </p>
                         </div>
 
-                        <div className="mt-6 flex items-center justify-between">
-                          <span className="text-xs bg-neutral-950 px-3 py-1 rounded-full text-neutral-400 font-mono">
+                        <div className="relative mt-6 flex items-center justify-between gap-3">
+                          <span className="text-xs bg-neutral-950 px-3 py-1 rounded-full text-neutral-400 font-mono border border-white/5">
                             Song
                           </span>
                           <button
@@ -1398,33 +1347,35 @@ export default function Home() {
                     {/* PLAYLISTS Section (hidden when empty) */}
                     {searchPlaylists.length > 0 && (
                       <div>
-                        <h3 className="text-xl font-bold text-white mb-4">Playlists</h3>
+                        <h3 className="text-lg font-bold text-white mb-4">Playlists</h3>
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {searchPlaylists.map((playlist) => (
                             <div
                               key={playlist.browseId}
                               onClick={() => router.push(`/playlist/${playlist.browseId.replace(/^VL/, "")}`)}
                               title={playlist.title}
-                              className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40"
+                              className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                             >
-                              <img
-                                src={playlist.thumbnail || "/placeholder.svg"}
-                                alt={playlist.title}
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
-                                }}
-                                className="w-28 h-28 rounded-xl object-cover mb-3 shadow-lg group-hover:scale-105 transition-transform"
-                              />
-                              <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400">
+                              <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
+                                <img
+                                  src={playlist.thumbnail || "/placeholder.svg"}
+                                  alt={playlist.title}
+                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
+                                  className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
+                                />
+                              </div>
+                              <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                                 {playlist.title}
                               </p>
-                              <p className="text-xs text-neutral-400 truncate mt-0.5">
+                              <p className="text-[11px] text-neutral-400 truncate mt-0.5">
                                 {playlist.author || "Playlist"}
                               </p>
                               {playlist.isCommunity && (
-                                <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                                <span className="inline-block text-[10px] text-emerald-400 font-medium truncate mt-1">
                                   Community playlist
                                 </span>
                               )}
@@ -1437,7 +1388,7 @@ export default function Home() {
                     {/* ARTISTS Section (horizontal scroll when matching artists) */}
                     {matchingArtists.length > 0 && (
                       <div>
-                        <h3 className="text-xl font-bold text-white mb-4">Artists</h3>
+                        <h3 className="text-lg font-bold text-white mb-4">Artists</h3>
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {matchingArtists.map((artist, idx) => (
                             <div
@@ -1447,7 +1398,7 @@ export default function Home() {
                                   router.push(`/artist/${artist.browseId}`);
                                 }
                               }}
-                              className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all text-center border border-neutral-800/40"
+                              className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 text-center border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${artist.browseId ? "cursor-pointer" : "cursor-default"}`}
                             >
                               <img
                                 src={artist.image}
@@ -1457,12 +1408,12 @@ export default function Home() {
                                 onError={(e) => {
                                   e.currentTarget.src = "/placeholder.svg";
                                 }}
-                                className="w-24 h-24 rounded-full object-cover mx-auto mb-3 shadow-lg group-hover:scale-105 transition-transform"
+                                className="w-28 h-28 rounded-full object-cover mx-auto mb-3 shadow-lg group-hover:scale-[1.04] transition-transform duration-300"
                               />
-                              <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400">
+                              <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                                 {artist.name}
                               </p>
-                              <p className="text-xs text-neutral-400 mt-0.5">Artist</p>
+                              <p className="text-[11px] text-neutral-400 mt-0.5">Artist</p>
                             </div>
                           ))}
                         </div>
@@ -1472,7 +1423,7 @@ export default function Home() {
                     {/* ALBUMS Section (horizontal scroll when matching albums) */}
                     {matchingAlbums.length > 0 && (
                       <div>
-                        <h3 className="text-xl font-bold text-white mb-4">Albums</h3>
+                        <h3 className="text-lg font-bold text-white mb-4">Albums</h3>
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {matchingAlbums.map((album, idx) => (
                             <div
@@ -1482,22 +1433,24 @@ export default function Home() {
                                   router.push(`/album/${album.browseId}`);
                                 }
                               }}
-                              className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40"
+                              className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${album.browseId ? "cursor-pointer" : "cursor-default"}`}
                             >
-                              <img
-                                src={album.cover}
-                                alt={album.title}
-                                crossOrigin="anonymous"
-                                referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
-                                }}
-                                className="w-28 h-28 rounded-xl object-cover mb-3 shadow-lg group-hover:scale-105 transition-transform"
-                              />
-                              <p className="text-sm font-semibold text-white truncate group-hover:text-emerald-400">
+                              <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
+                                <img
+                                  src={album.cover}
+                                  alt={album.title}
+                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
+                                  className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
+                                />
+                              </div>
+                              <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
                                 {album.title}
                               </p>
-                              <p className="text-xs text-neutral-400 truncate mt-0.5">{album.artist}</p>
+                              <p className="text-[11px] text-neutral-400 truncate mt-0.5">{album.artist}</p>
                             </div>
                           ))}
                         </div>
@@ -1726,6 +1679,47 @@ export default function Home() {
                   />
                 ))}
               </div>
+
+              {/* Followed Artists (local-only, shown only when the user follows someone) */}
+              {mounted && followedArtists.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-lg font-bold text-white">Followed Artists</h2>
+                    </div>
+                    <span className="text-xs font-mono text-neutral-500">
+                      {followedArtists.length}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                    {followedArtists.map((artist) => (
+                      <Link
+                        key={artist.browseId}
+                        href={`/artist/${artist.browseId}`}
+                        title={artist.name}
+                        className="shrink-0 w-32 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 text-center border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+                      >
+                        <img
+                          src={artist.thumbnail || "/placeholder.svg"}
+                          alt={artist.name}
+                          crossOrigin="anonymous"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder.svg";
+                          }}
+                          className="w-20 h-20 rounded-full object-cover mx-auto mb-3 shadow-lg group-hover:scale-[1.04] transition-transform duration-300"
+                        />
+                        <p className="text-[13px] font-semibold text-white truncate group-hover:text-emerald-400 transition-colors">
+                          {artist.name}
+                        </p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">Artist</p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

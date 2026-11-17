@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mic2, Play, Disc3, ListMusic } from "lucide-react";
+import { ArrowLeft, Mic2, Play, Disc3, ListMusic, UserPlus, Check } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { Player } from "@/components/Player";
 import { TrackRow } from "@/components/TrackRow";
@@ -43,6 +43,8 @@ interface SimilarArtist {
 interface ArtistData {
   title: string;
   thumbnail: string;
+  description?: string;
+  subscriberCount?: string;
   tracks: ArtistTrack[];
   albums?: ArtistRelease[];
   singles?: ArtistRelease[];
@@ -63,7 +65,7 @@ function toTrack(item: ArtistTrack): Track {
 }
 
 export function ArtistView({ id }: { id: string }) {
-  const { playTrack } = usePlayer();
+  const { playTrack, followedArtists, toggleFollowArtist } = usePlayer();
   const [artist, setArtist] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +114,8 @@ export function ArtistView({ id }: { id: string }) {
     return 0;
   });
   const fansAlsoLike = artist?.fansAlsoLike || [];
+
+  const isFollowing = followedArtists.some((followed) => followed.browseId === id);
 
   // Popular releases: mix of albums and singles or all releases
   const popularReleases = [...albums, ...singles];
@@ -179,13 +183,14 @@ export function ArtistView({ id }: { id: string }) {
                     {artist.title}
                   </h1>
                   <p className="text-sm text-neutral-300">
+                    {artist.subscriberCount ? `${artist.subscriberCount} • ` : ""}
                     {tracks.length} songs
                   </p>
                 </div>
               </div>
 
-              {/* Play action */}
-              <div className="flex items-center gap-4">
+              {/* Play + Follow actions */}
+              <div className="flex items-center gap-3">
                 {tracks.length > 0 && (
                   <button
                     onClick={() => playTrack(tracks[0], tracks)}
@@ -195,7 +200,41 @@ export function ArtistView({ id }: { id: string }) {
                     <Play className="w-6 h-6 fill-black ml-0.5" />
                   </button>
                 )}
+                <button
+                  onClick={() =>
+                    toggleFollowArtist({
+                      browseId: id,
+                      name: artist.title,
+                      thumbnail: artist.thumbnail,
+                    })
+                  }
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold border transition-colors cursor-pointer ${
+                    isFollowing
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15"
+                      : "border-white/20 text-neutral-200 hover:border-white/40 hover:text-white"
+                  }`}
+                  aria-pressed={isFollowing}
+                >
+                  {isFollowing ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Following
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Follow
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* Artist biography (only when the API provides real text) */}
+              {artist.description && (
+                <p className="text-sm text-neutral-300 leading-relaxed max-w-3xl line-clamp-4">
+                  {artist.description}
+                </p>
+              )}
 
               {/* Popular section */}
               <div>

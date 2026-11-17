@@ -228,6 +228,15 @@ export async function GET(req: NextRequest) {
         asObject(asObject(root?.header)?.musicHeaderRenderer)?.thumbnail,
       );
 
+    // Optional real metadata from the same header (never synthesised).
+    const description = runsText(headerRenderer?.description);
+    const subscribeButton = asObject(
+      asObject(headerRenderer?.subscriptionButton)?.subscribeButtonRenderer,
+    );
+    const subscriberCount =
+      runsText(subscribeButton?.longSubscriberCountText) ||
+      runsText(subscribeButton?.subscriberCountText);
+
     // Parse sections from singleColumnBrowseResultsRenderer
     const contents = asObject(root?.contents);
     const singleCol = asObject(contents?.singleColumnBrowseResultsRenderer);
@@ -381,6 +390,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       title: title || "Artist",
       thumbnail,
+      description,
+      subscriberCount,
       tracks,
       albums,
       singles,

@@ -30,6 +30,12 @@ export interface SavedPlaylist {
   trackCount: number;
 }
 
+export interface FollowedArtist {
+  browseId: string;
+  name: string;
+  thumbnail: string;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
