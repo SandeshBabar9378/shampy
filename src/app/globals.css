@@ -561,3 +561,25 @@ input[type="range"]:hover {
     --carousel-h: clamp(200px, 58vw, 270px);
   }
 }
+
+/* App-like feel on touch devices and when installed as a PWA */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+@media (display-mode: standalone) {
+  html,
+  body {
+    /* No pull-to-refresh / rubber-banding that would feel like a webpage. */
+    overscroll-behavior: none;
+  }
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

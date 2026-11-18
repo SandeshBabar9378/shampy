@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { usePlayer, type ThemeId } from "@/context/PlayerContext";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
 import { AccountSection } from "@/components/AccountSection";
+import { InstallAppCard } from "@/components/InstallAppCard";
 
 const THEMES: { id: ThemeId; name: string; description: string; swatch: string }[] = [
   {
@@ -73,6 +74,8 @@ export default function SettingsPage() {
 
       {/* Settings Body */}
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-8 space-y-8">
+        <InstallAppCard />
+
         {/* Appearance Section */}
         <section className="space-y-5">
           <div className="flex items-center gap-2">

@@ -20,6 +20,16 @@ Data lives in hosted Postgres (Neon, Supabase, or any Postgres), so a laptop and
 
 **Downloads (paused):** the code for saving audio on the device (IndexedDB) and syncing the list of downloaded songs is in place but switched off with `DOWNLOADS_ENABLED` in `src/lib/features.ts`, because YouTube currently rejects the audio request used to fetch songs.
 
+## Install as a mobile app (PWA)
+
+Shubhu is an installable web app: it opens full-screen from the home screen with its own icon, shows lock-screen controls (play/pause/next/previous), and shows an offline page if you lose connection.
+
+- **When someone opens the site without having installed it**, a popup offers to install it. On Android/Chrome it has a one-tap **Install** button; on iPhone/iPad it shows the Safari steps (Share → Add to Home Screen). "Not now" hides it for a week. Settings → **Get the app** has the same option any time.
+- **It needs HTTPS.** Installing only works on a secure site (or `localhost`), so deploy it first. On Vercel: import the repo, add `DATABASE_URL`, `DATABASE_URL_UNPOOLED` and `AUTH_SECRET` as environment variables, deploy, then open the `https://…vercel.app` URL on your phone. Use the same `AUTH_SECRET` everywhere and never change it.
+- Local test with HTTPS: `npx next dev --experimental-https`.
+- Files: `src/app/manifest.ts` (name, colours, icons), `public/icons/` (app icons), `public/sw.js` + `public/offline.html` (offline page; it never caches pages or API data), `src/lib/pwaInstall.ts` and `src/components/InstallPrompt.tsx` (the popup).
+- **Known limit:** songs play through a hidden YouTube player, which phones usually pause when the screen locks or the app is in the background. That is the same in a browser, a PWA or a Capacitor wrapper; fixing it needs a different audio source (the same blocker as Downloads).
+
 ## Quick start (local)
 ```bash
 cd C:\Users\dilip\.gemini\antigravity\scratch\spotify-clone

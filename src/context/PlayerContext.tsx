@@ -1537,6 +1537,56 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setQueue(validTracks);
   };
 
+  // ── Lock screen / notification / headset controls (Media Session API) ─────
+  // Handlers are registered once and call the latest actions through a ref.
+  const mediaActionsRef = useRef({ isPlaying, togglePlay, nextTrack, prevTrack, seek });
+  useEffect(() => {
+    mediaActionsRef.current = { isPlaying, togglePlay, nextTrack, prevTrack, seek };
+  });
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const session = navigator.mediaSession;
+    const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ["play", () => !mediaActionsRef.current.isPlaying && mediaActionsRef.current.togglePlay()],
+      ["pause", () => mediaActionsRef.current.isPlaying && mediaActionsRef.current.togglePlay()],
+      ["previoustrack", () => mediaActionsRef.current.prevTrack()],
+      ["nexttrack", () => mediaActionsRef.current.nextTrack()],
+      ["seekto", (details) => typeof details.seekTime === "number" && mediaActionsRef.current.seek(details.seekTime)],
+    ];
+    for (const [action, handler] of handlers) {
+      try {
+        session.setActionHandler(action, handler);
+      } catch {
+        /* action not supported on this browser */
+      }
+    }
+    return () => {
+      for (const [action] of handlers) {
+        try {
+          session.setActionHandler(action, null);
+        } catch {}
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.metadata = currentTrack
+      ? new MediaMetadata({
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          album: currentTrack.album || "",
+          artwork: currentTrack.coverUrl ? [{ src: currentTrack.coverUrl, sizes: "512x512" }] : [],
+        })
+      : null;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = currentTrack ? (isPlaying ? "playing" : "paused") : "none";
+  }, [isPlaying, currentTrack]);
+
   return (
     <PlayerContext.Provider
       value={{
