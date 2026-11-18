@@ -14,6 +14,17 @@
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-user-select: none;
   user-select: none;
+  will-change: transform;
+}
+
+/* Drag-to-minimize: no transition while the finger drives the sheet, then a
+   spring-like ease for both the snap-back and the minimize animation. */
+.shubhu-mp-rootDragging {
+  transition: none !important;
+}
+
+.shubhu-mp-rootSnapping {
+  transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 /* ── Artwork-driven background ───────────────────────────────────────────── */
@@ -77,6 +88,49 @@
   padding: 0 18px;
 }
 
+/* Main-player header doubles as the drag handle. The pill at the top centre is
+   the visual affordance; touch-action keeps the browser from scrolling while
+   the finger pulls the sheet down. */
+.shubhu-mp-topBarDraggable {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+
+.shubhu-mp-topBarDraggable:active {
+  cursor: grabbing;
+}
+
+.shubhu-mp-topBarDraggable::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateX(-50%);
+  transition: background 180ms ease, width 180ms ease;
+}
+
+.shubhu-mp-topBarDraggable:hover::before {
+  width: 50px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Shared header drag surface for Queue and Lyrics/Transcript. The whole
+   horizontal header participates; no extra handle is added to the UI. */
+.shubhu-mp-headerDraggable {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+
+.shubhu-mp-headerDraggable:active {
+  cursor: grabbing;
+}
+
 .shubhu-mp-iconButton {
   display: flex;
   align-items: center;
@@ -105,6 +159,139 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* ── Lyrics header (compact + expanded) ──────────────────────────────────── */
+.shubhu-mp-lyricsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 4px 16px 2px;
+}
+
+.shubhu-mp-lyricsDragArea {
+  flex: 1;
+  min-width: 0;
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.shubhu-mp-lyricsDragArea:active {
+  cursor: grabbing;
+}
+
+.shubhu-mp-lyricsHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 18px;
+  padding: 6px 0 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+
+.shubhu-mp-lyricsHandle span {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  transition: background 200ms ease, width 200ms ease;
+}
+
+.shubhu-mp-lyricsHandle:hover span {
+  background: rgba(255, 255, 255, 0.55);
+  width: 52px;
+}
+
+.shubhu-mp-lyricsTrackRow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.shubhu-mp-lyricsTrackRow img {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.shubhu-mp-lyricsTrackMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.shubhu-mp-lyricsTrackMeta strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shubhu-mp-lyricsTrackMeta small {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.52);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shubhu-mp-transcriptPill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 9px;
+  flex-shrink: 0;
+  border: 1px solid rgba(201, 176, 255, 0.26);
+  border-radius: 999px;
+  background: rgba(201, 176, 255, 0.12);
+  color: #d9c5ff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.shubhu-mp-transcriptPill svg {
+  width: 13px;
+  height: 13px;
+}
+
+.shubhu-mp-lyricsMenuButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.shubhu-mp-lyricsMenuButton:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
 .shubhu-mp-body {
   position: relative;
   flex: 1;
@@ -118,10 +305,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  /* Distribute the free space evenly (including the top and bottom edges) so
+     the title → seekbar → controls gaps stay cohesive on tall phones instead
+     of all extra height collecting under the song info. */
+  justify-content: space-evenly;
   width: 100%;
   height: 100%;
-  padding: clamp(4px, 1.4dvh, 16px) 20px 0;
+  padding: clamp(4px, 1.4dvh, 16px) 20px clamp(8px, 1.6dvh, 16px);
   gap: clamp(6px, 1.4dvh, 16px);
 }
 
@@ -389,41 +579,157 @@
   height: 100%;
 }
 
+.shubhu-mp-lyricsView {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .shubhu-mp-lyricsScroll {
   position: relative;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 32vh 8px 42vh;
+  padding: 9dvh 22px 32dvh;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shubhu-mp-lyricsViewExpanded .shubhu-mp-lyricsScroll {
+  padding-top: 16dvh;
+  padding-bottom: 44dvh;
+}
+
+.shubhu-mp-lyricsDragging {
+  transition: none;
 }
 
 .shubhu-mp-lyricsInner {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: clamp(14px, 2.2dvh, 22px);
+  align-items: stretch;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  gap: clamp(14px, 2.2dvh, 20px);
 }
 
 .shubhu-mp-lyricLine {
+  display: block;
   width: 100%;
+  padding: 6px 6px 6px 14px;
   border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 8px;
   background: transparent;
   font-family: inherit;
   font-size: 19px;
-  font-weight: 700;
-  line-height: 1.35;
-  text-align: center;
+  font-weight: 600;
+  line-height: 1.42;
+  text-align: left;
   color: rgba(255, 255, 255, 0.34);
   cursor: pointer;
-  transition: color 320ms ease, opacity 320ms ease, transform 320ms ease, font-size 320ms ease;
+  transform-origin: left center;
+  transition:
+    color 420ms ease,
+    opacity 420ms ease,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 420ms ease,
+    background 320ms ease,
+    text-shadow 420ms ease;
+}
+
+.shubhu-mp-lyricUpcoming {
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.shubhu-mp-lyricPast {
+  color: rgba(255, 255, 255, 0.24);
 }
 
 .shubhu-mp-lyricActive {
-  font-size: 25px;
   color: #fff;
-  transform: scale(1.02);
-  text-shadow: 0 0 26px rgba(201, 176, 255, 0.75), 0 2px 12px rgba(0, 0, 0, 0.35);
+  font-weight: 800;
+  transform: scale(1.055);
+  border-left-color: rgba(201, 176, 255, 0.85);
+  background: linear-gradient(90deg, rgba(201, 176, 255, 0.1), rgba(201, 176, 255, 0) 72%);
+  text-shadow: 0 0 28px rgba(201, 176, 255, 0.35), 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.shubhu-mp-lyricMain {
+  display: block;
+}
+
+.shubhu-mp-lyricRegional {
+  display: block;
+  margin-top: 4px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.shubhu-mp-lyricActive .shubhu-mp-lyricRegional {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.shubhu-mp-lyricWordSung,
+.shubhu-mp-lyricWordCurrent,
+.shubhu-mp-lyricWordUpcoming {
+  transition: color 260ms ease, opacity 260ms ease, text-shadow 260ms ease;
+}
+
+.shubhu-mp-lyricWordSung {
+  color: #ffffff;
+}
+
+.shubhu-mp-lyricWordCurrent {
+  color: #c9b0ff;
+  text-shadow: 0 0 22px rgba(201, 176, 255, 0.55);
+}
+
+.shubhu-mp-lyricWordUpcoming {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.shubhu-mp-transcriptStatus {
+  margin: 0 0 2px;
+  padding-left: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(201, 176, 255, 0.7);
+  text-align: left;
+}
+
+/* Compact lyrics keep the standard progress row and transport visible. The
+   footer collapses its real height so the lyrics can grow smoothly. */
+.shubhu-mp-lyricsFooter {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.8dvh, 16px);
+  flex-shrink: 0;
+  max-height: 260px;
+  padding: 8px 20px clamp(10px, 2.2dvh, 22px);
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-height 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease;
+}
+
+.shubhu-mp-rootExpanded .shubhu-mp-lyricsFooter {
+  max-height: 0;
+  padding-top: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shubhu-mp-lyricsFooter .shubhu-mp-controls {
+  margin: 0 auto;
 }
 
 .shubhu-mp-placeholder {
@@ -454,38 +760,47 @@
 .shubhu-mp-queueScroll {
   height: 100%;
   overflow-y: auto;
-  padding: 2px 2px 14px;
+  padding: 2px 16px calc(20px + env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
 .shubhu-mp-queueHeading {
-  margin: 4px 10px 12px;
+  margin: 8px 4px 10px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.shubhu-mp-queueHeadingNext {
+  margin-top: 20px;
+}
+
+.shubhu-mp-queueNowPlaying {
+  margin: 0 -4px;
 }
 
 .shubhu-mp-queueList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .shubhu-mp-queueItem {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 13px;
   width: 100%;
+  min-height: 62px;
   padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background 160ms ease;
+  transition: background 180ms ease, border-color 180ms ease;
 }
 
 .shubhu-mp-queueItem:hover {
@@ -493,16 +808,23 @@
 }
 
 .shubhu-mp-queueItemActive {
-  background: rgba(201, 176, 255, 0.14);
-  border-color: rgba(201, 176, 255, 0.25);
+  background: linear-gradient(90deg, rgba(201, 176, 255, 0.24), rgba(201, 176, 255, 0.07));
+  border-color: rgba(201, 176, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.shubhu-mp-queueItemActive:hover {
+  background: linear-gradient(90deg, rgba(201, 176, 255, 0.28), rgba(201, 176, 255, 0.09));
 }
 
 .shubhu-mp-queueItem img {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   border-radius: 10px;
+  object-fit: cover;
   background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
 }
 
 .shubhu-mp-queueMeta {
@@ -519,6 +841,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .shubhu-mp-queueTitle {
@@ -527,9 +850,17 @@
   color: #fff;
 }
 
+.shubhu-mp-queueItemActive .shubhu-mp-queueTitle {
+  color: #f4ecff;
+}
+
 .shubhu-mp-queueArtist {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.shubhu-mp-queueItemActive .shubhu-mp-queueArtist {
+  color: rgba(233, 220, 255, 0.65);
 }
 
 .shubhu-mp-queueDuration {
@@ -539,11 +870,11 @@
   color: rgba(255, 255, 255, 0.4);
 }
 
-.shubhu-mp-queueGrip {
+.shubhu-mp-queueGripIcon {
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  font-size: 14px;
-  letter-spacing: -3px;
-  color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.32);
 }
 
 .shubhu-mp-equalizer {
@@ -580,6 +911,8 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
   flex-shrink: 0;
+  max-height: 120px;
+  overflow: hidden;
   margin: 6px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   padding: 5px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -587,9 +920,29 @@
   background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(22px);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    max-height 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-width 440ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease,
+    transform 440ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shubhu-mp-bottomBarHidden {
+  max-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  opacity: 0;
+  transform: translateY(18px);
+  pointer-events: none;
 }
 
 .shubhu-mp-bottomButton {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -606,6 +959,16 @@
   line-height: 1.35;
   cursor: pointer;
   transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.shubhu-mp-bottomButton + .shubhu-mp-bottomButton::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: -3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .shubhu-mp-bottomButton:hover {
@@ -636,16 +999,21 @@
 
 .shubhu-mp-menu {
   position: absolute;
-  top: 56px;
+  top: calc(env(safe-area-inset-top, 0px) + 58px);
   right: 14px;
   z-index: 20;
-  width: 230px;
-  padding: 6px;
-  border: 1px solid rgba(201, 176, 255, 0.2);
-  border-radius: 18px;
-  background: rgba(29, 19, 47, 0.94);
-  backdrop-filter: blur(24px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  width: min(252px, calc(100vw - 28px));
+  padding: 8px;
+  border: 1px solid rgba(201, 176, 255, 0.24);
+  border-radius: 20px;
+  background: rgba(29, 19, 47, 0.95);
+  backdrop-filter: blur(26px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  transform-origin: top right;
+}
+
+.shubhu-mp-menuLyrics {
+  top: calc(env(safe-area-inset-top, 0px) + 72px);
 }
 
 .shubhu-mp-menuIn {
@@ -655,15 +1023,17 @@
 .shubhu-mp-menuItem {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
-  padding: 11px 12px;
+  min-height: 48px;
+  padding: 12px 14px;
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: #e9e0f6;
+  color: #f1e9fd;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14.5px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
   transition: background 140ms ease;
@@ -673,11 +1043,57 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
+.shubhu-mp-menuItem:active {
+  background: rgba(201, 176, 255, 0.12);
+}
+
 .shubhu-mp-menuIcon {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  color: #b9a8d8;
+  color: #c4b2e6;
+}
+
+.shubhu-mp-menuToggleState {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(201, 176, 255, 0.72);
+}
+
+.shubhu-mp-menuTimerState {
+  color: #d9c5ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.shubhu-mp-switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  transition: background 200ms ease;
+}
+
+.shubhu-mp-switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.shubhu-mp-switchOn {
+  background: #b79aff;
+}
+
+.shubhu-mp-switchOn i {
+  transform: translateX(18px);
 }
 
 .shubhu-mp-menuIconActive {
@@ -731,6 +1147,27 @@
 
 .shubhu-mp-sheetIn {
   animation: sheetIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Drag-to-dismiss: finger-driven movement is instant, release uses a spring
+   ease for both dismissal and snap-back. */
+.shubhu-mp-sheetDragging {
+  transition: none !important;
+}
+
+.shubhu-mp-sheetSnapping {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+.shubhu-mp-sheetHandle,
+.shubhu-mp-sheetHeader {
+  touch-action: none;
+  cursor: grab;
+}
+
+.shubhu-mp-sheetHandle:active,
+.shubhu-mp-sheetHeader:active {
+  cursor: grabbing;
 }
 
 .shubhu-mp-sheetHandle {
@@ -1188,11 +1625,13 @@
 
 @keyframes sheetIn {
   from {
-    transform: translateY(100%);
+    /* Animate the independent `translate` property so the drag gesture's
+       inline `transform` is never overridden by the entrance animation. */
+    translate: 0 100%;
     opacity: 0.8;
   }
   to {
-    transform: translateY(0);
+    translate: 0 0;
     opacity: 1;
   }
 }

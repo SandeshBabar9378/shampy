@@ -3,10 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Captions,
   Check,
   ChevronDown,
-  Disc3,
   Download,
+  GripVertical,
   Heart,
   ListMusic,
   Loader2,
@@ -17,13 +18,13 @@ import {
   Play,
   Plus,
   Quote,
-  Radio,
   Repeat,
   Share2,
   Shuffle,
   SkipBack,
   SkipForward,
   Timer,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -33,6 +34,8 @@ import {
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 import { parseLRC, type LyricLine } from "@/lib/lyrics";
+import { hasNonLatinLetters } from "@/lib/transcript";
+import { loadTranscripts } from "@/lib/transcriptClient";
 import "./MobilePlayer.css";
 
 type MobileView = "player" | "lyrics" | "queue";
@@ -98,6 +101,22 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const [manualScrollUntil, setManualScrollUntil] = useState(0);
   const lyricsScrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Lyrics sheet expansion (Apple Music style). Compact by default so the
+  // standard playback controls stay visible; expanding is a purely visual,
+  // mobile-only state and never touches playback or desktop components.
+  const [lyricsExpanded, setLyricsExpanded] = useState(false);
+  const lyricsScrollTopRef = useRef<number | null>(null);
+  const lyricsScrollUpRef = useRef(0);
+  const lyricsExpandLockRef = useRef(0);
+
+  // Transcript (Roman script) is a real, mobile-only toggle that defaults OFF.
+  // It reuses the same /api/transcribe endpoint, validation and cache key as
+  // the laptop lyrics view.
+  const [transcriptEnabled, setTranscriptEnabled] = useState(false);
+  const [transcriptions, setTranscriptions] = useState<string[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [transcriptDisabled, setTranscriptDisabled] = useState(false);
+
   // Add-to-playlist sheet state.
   const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState("");
@@ -105,6 +124,39 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   // Sleep timer sheet state.
   const [selectedSleepOption, setSelectedSleepOption] = useState<SleepTimerOption | null>(null);
   const [customMinutes, setCustomMinutes] = useState("");
+
+  // ── Drag-to-minimize (main player) ──────────────────────────────────────────
+  // Purely presentational: the player sheet follows the finger, then either
+  // snaps back or slides off-screen before `onClose()` reveals the mini-player.
+  // Playback lives in PlayerContext, so nothing pauses or unmounts early.
+  const [minimizeY, setMinimizeY] = useState(0);
+  const [minimizePhase, setMinimizePhase] = useState<"idle" | "dragging" | "settling">("idle");
+  const minimizeGestureRef = useRef<{
+    id: number;
+    startY: number;
+    startX: number;
+    lastY: number;
+    lastT: number;
+    velocity: number;
+    moved: boolean;
+  } | null>(null);
+  const minimizeTimer = useRef<number | null>(null);
+  // After a real drag we swallow the synthetic click that would otherwise
+  // activate the button/menu the gesture started on.
+  const suppressHeaderClickUntil = useRef(0);
+
+  // ── Shared bottom-sheet drag-to-dismiss ─────────────────────────────────────
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const [sheetDragPhase, setSheetDragPhase] = useState<"idle" | "dragging" | "settling">("idle");
+  const sheetGestureRef = useRef<{
+    id: number;
+    startY: number;
+    lastY: number;
+    lastT: number;
+    velocity: number;
+    moved: boolean;
+  } | null>(null);
+  const sheetTimer = useRef<number | null>(null);
 
   // Swipe state (pointer events + `touch-action: pan-y`).
   const [dragX, setDragX] = useState(0);
@@ -138,6 +190,8 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     return () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+      if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+      if (sheetTimer.current !== null) window.clearTimeout(sheetTimer.current);
     };
   }, []);
 
@@ -159,6 +213,8 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     setLyricsLoading(true);
     setLyricLines([]);
     setActiveLyric(-1);
+    setTranscriptions([]);
+    setTranscriptDisabled(false);
 
     const query = new URLSearchParams({
       title: currentTrack.title,
@@ -219,7 +275,31 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     if (!container || !line) return;
     const target = line.offsetTop + line.offsetHeight / 2 - container.clientHeight / 2;
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-  }, [activeLyric, view, manualScrollUntil]);
+  }, [activeLyric, view, manualScrollUntil, lyricsExpanded, transcriptEnabled, transcriptions]);
+
+  // Only fetch Roman transcripts when the toggle is actually ON. The shared
+  // helper uses the laptop view's endpoint, validation and cache.
+  useEffect(() => {
+    if (!transcriptEnabled || view !== "lyrics" || !currentTrack || lyricLines.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    setTranscriptLoading(true);
+    setTranscriptDisabled(false);
+
+    loadTranscripts(currentTrack.id, lyricLines.map((line) => line.text)).then(
+      (result) => {
+        if (cancelled) return;
+        setTranscriptions(result.transcriptions ?? []);
+        setTranscriptDisabled(result.disabled);
+        setTranscriptLoading(false);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [transcriptEnabled, view, currentTrack?.id, lyricLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Swipe helpers ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -236,6 +316,14 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     const byId = queue.findIndex((track) => track.id === currentTrack?.id);
     return byId !== -1 ? byId : currentIndex;
   }, [queue, currentTrack?.id, currentIndex]);
+
+  // The queue screen must distinguish the real current track even if it is not
+  // part of the current queue (the swipe preview above falls back to
+  // `currentIndex` for browsing, which is a different concern).
+  const queueCurrentIndex = useMemo(
+    () => queue.findIndex((track) => track.id === currentTrack?.id),
+    [queue, currentTrack?.id],
+  );
 
   const previousSong = queue.length
     ? queue[(playingIndex - 1 + queue.length) % queue.length]
@@ -312,25 +400,6 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     setNewPlaylistName("");
     setShowMenu(false);
     setShowPlaylistSheet(true);
-  };
-
-  const openSleepSheet = () => {
-    // Reflect the current timer state when the sheet is reopened.
-    if (sleepAtEndOfSong) {
-      setSelectedSleepOption({ label: "End of Current Track", seconds: null });
-    } else if (sleepEndsAt) {
-      const remaining = Math.ceil((sleepEndsAt - Date.now()) / 1000);
-      setSelectedSleepOption(
-        [300, 600, 900, 1800, 2700, 3600].find((s) => Math.abs(s - remaining) <= 5)
-          ? { label: `${Math.round(remaining / 60)} minutes`, seconds: remaining }
-          : null,
-      );
-    } else {
-      setSelectedSleepOption(null);
-    }
-    setCustomMinutes("");
-    setShowMenu(false);
-    setShowSleepSheet(true);
   };
 
   const togglePlaylistSelection = (id: string) => {
@@ -449,12 +518,461 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
 
   if (!currentTrack) return null;
 
-  const headerTitle = view === "player" ? "Now Playing" : view === "lyrics" ? "Lyrics" : "Up Next";
+  const headerTitle = view === "player" ? "Now Playing" : view === "lyrics" ? "Lyrics" : "Queue";
+
+  // ── Lyrics / Transcript sheet expansion ────────────────────────────────────
+  // Expanding only changes layout; the compact view keeps the seekbar,
+  // transport controls and dock. Scrolling (below) is the primary trigger and
+  // the handle remains tappable.
+  const toggleLyricsExpanded = () => {
+    setLyricsExpanded((expanded) => !expanded);
+    setManualScrollUntil(0);
+  };
+
+  // Scroll-to-expand: while the user is manually scrolling the lyrics, going
+  // further down hides the footer transport and dock; returning to the top of
+  // the lyric stream reveals them again. Programmatic auto-scroll is ignored
+  // (manualScrollUntil is only set by touch/wheel input), so timestamp syncing
+  // can never open or close the sheet on its own.
+  const handleLyricsScroll = () => {
+    const container = lyricsScrollRef.current;
+    if (!container) return;
+
+    const now = Date.now();
+    if (view !== "lyrics" || now >= manualScrollUntil) {
+      // Keep the baseline fresh for programmatic/auto scrolling so it can
+      // never be mistaken for a manual upward gesture.
+      lyricsScrollTopRef.current = container.scrollTop;
+      lyricsScrollUpRef.current = 0;
+      return;
+    }
+
+    const top = container.scrollTop;
+    const previousTop = lyricsScrollTopRef.current ?? top;
+    lyricsScrollTopRef.current = top;
+    const delta = top - previousTop;
+    if (delta > 0) lyricsScrollUpRef.current = 0;
+    else if (delta < 0) lyricsScrollUpRef.current += delta;
+
+    if (!lyricsExpanded) {
+      if (top > 36 && delta > 0 && now > lyricsExpandLockRef.current) {
+        setLyricsExpanded(true);
+        lyricsScrollUpRef.current = 0;
+      }
+      return;
+    }
+
+    if (top <= 12) {
+      setLyricsExpanded(false);
+      lyricsScrollUpRef.current = 0;
+      lyricsExpandLockRef.current = now + 500;
+    } else if (lyricsScrollUpRef.current < -60 && now > lyricsExpandLockRef.current) {
+      // Scrolling back up anywhere in the stream reveals the controls again.
+      setLyricsExpanded(false);
+      lyricsScrollUpRef.current = 0;
+      lyricsExpandLockRef.current = now + 500;
+    }
+  };
+
+  // ── Drag-to-minimize (header regions of Player / Lyrics / Queue) ────────────
+  // The whole designated header is the gesture area, including its buttons.
+  // A tap (no movement) still activates the button; only a real vertical drag
+  // turns into a minimize gesture, and its trailing click is swallowed.
+  const startPlayerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (showMenu || showPlaylistSheet || showSleepSheet) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("input, textarea, select")) return;
+
+    if (minimizeTimer.current !== null) {
+      window.clearTimeout(minimizeTimer.current);
+      minimizeTimer.current = null;
+    }
+    minimizeGestureRef.current = {
+      id: event.pointerId,
+      startY: event.clientY,
+      startX: event.clientX,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0,
+      moved: false,
+    };
+    setMinimizePhase("dragging");
+  };
+
+  const movePlayerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const gesture = minimizeGestureRef.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    const dy = event.clientY - gesture.startY;
+    const dx = event.clientX - gesture.startX;
+
+    if (!gesture.moved) {
+      // A horizontal gesture is not a minimize drag.
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+        minimizeGestureRef.current = null;
+        setMinimizePhase("idle");
+        setMinimizeY(0);
+        return;
+      }
+      if (Math.abs(dy) < 4) return;
+      gesture.moved = true;
+      // Capture only once the gesture is definitely a drag, so plain taps on
+      // the header buttons keep their normal click target.
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is best-effort.
+      }
+    }
+
+    const now = performance.now();
+    const dt = now - gesture.lastT;
+    if (dt >= 8) {
+      gesture.velocity = Math.max(-4, Math.min(4, (event.clientY - gesture.lastY) / dt));
+      gesture.lastY = event.clientY;
+      gesture.lastT = now;
+    }
+
+    // Only downward travel minimizes; upward movement simply rests at 0.
+    setMinimizeY(Math.max(0, dy));
+  };
+
+  const finishPlayerDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const gesture = minimizeGestureRef.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    minimizeGestureRef.current = null;
+
+    if (!gesture.moved) {
+      setMinimizePhase("idle");
+      setMinimizeY(0);
+      return;
+    }
+
+    // The pointerup may still produce a click on the header button.
+    suppressHeaderClickUntil.current = Date.now() + 500;
+
+    const dy = Math.max(0, event.clientY - gesture.startY);
+    const velocity = performance.now() - gesture.lastT > 120 ? 0 : gesture.velocity;
+    const shouldMinimize = dy > 96 || (dy > 36 && velocity > 0.55);
+
+    setMinimizePhase("settling");
+    if (shouldMinimize) {
+      // Slide the whole sheet down, then reveal the page underneath (which
+      // still hosts the mini-player). Playback is never interrupted.
+      setMinimizeY(typeof window === "undefined" ? 900 : window.innerHeight);
+      minimizeTimer.current = window.setTimeout(() => {
+        minimizeTimer.current = null;
+        onClose();
+      }, 320);
+    } else {
+      setMinimizeY(0);
+      minimizeTimer.current = window.setTimeout(() => {
+        minimizeTimer.current = null;
+        setMinimizePhase("idle");
+      }, 360);
+    }
+  };
+
+  const cancelPlayerDrag = () => {
+    if (!minimizeGestureRef.current) return;
+    minimizeGestureRef.current = null;
+    setMinimizePhase("settling");
+    setMinimizeY(0);
+    if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
+    minimizeTimer.current = window.setTimeout(() => {
+      minimizeTimer.current = null;
+      setMinimizePhase("idle");
+    }, 360);
+  };
+
+  const handleHeaderClickCapture = (event: React.MouseEvent<HTMLElement>) => {
+    if (Date.now() < suppressHeaderClickUntil.current) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  // ── Drag-to-dismiss for both bottom sheets (handle + header only) ───────────
+  const startSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    // Buttons, inputs and the scrollable list keep their own gestures.
+    if (target.closest("button, input")) return;
+    if (!target.closest(".shubhu-mp-sheetHandle, .shubhu-mp-sheetHeader")) return;
+
+    if (sheetTimer.current !== null) {
+      window.clearTimeout(sheetTimer.current);
+      sheetTimer.current = null;
+    }
+    sheetGestureRef.current = {
+      id: event.pointerId,
+      startY: event.clientY,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      velocity: 0,
+      moved: false,
+    };
+    setSheetDragPhase("dragging");
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort.
+    }
+  };
+
+  const moveSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = sheetGestureRef.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    const dy = event.clientY - gesture.startY;
+    if (!gesture.moved) {
+      if (Math.abs(dy) < 3) return;
+      gesture.moved = true;
+    }
+
+    const now = performance.now();
+    const dt = now - gesture.lastT;
+    if (dt >= 8) {
+      gesture.velocity = Math.max(-4, Math.min(4, (event.clientY - gesture.lastY) / dt));
+      gesture.lastY = event.clientY;
+      gesture.lastT = now;
+    }
+
+    setSheetDragY(Math.max(0, dy));
+  };
+
+  const finishSheetDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = sheetGestureRef.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    sheetGestureRef.current = null;
+
+    if (!gesture.moved) {
+      setSheetDragPhase("idle");
+      setSheetDragY(0);
+      return;
+    }
+
+    const dy = Math.max(0, event.clientY - gesture.startY);
+    const velocity = performance.now() - gesture.lastT > 120 ? 0 : gesture.velocity;
+    const shouldDismiss = dy > 96 || (dy > 36 && velocity > 0.5);
+
+    setSheetDragPhase("settling");
+    if (shouldDismiss) {
+      setSheetDragY(typeof window === "undefined" ? 900 : window.innerHeight);
+      sheetTimer.current = window.setTimeout(() => {
+        sheetTimer.current = null;
+        setShowPlaylistSheet(false);
+        setShowSleepSheet(false);
+        setShowMenu(false);
+        setSheetDragY(0);
+        setSheetDragPhase("idle");
+      }, 280);
+    } else {
+      // Insufficient travel: spring back without touching any sheet state
+      // (selected playlists, timer choice and custom minutes all survive).
+      setSheetDragY(0);
+      sheetTimer.current = window.setTimeout(() => {
+        sheetTimer.current = null;
+        setSheetDragPhase("idle");
+      }, 320);
+    }
+  };
+
+  const cancelSheetDrag = () => {
+    if (!sheetGestureRef.current) return;
+    sheetGestureRef.current = null;
+    setSheetDragPhase("settling");
+    setSheetDragY(0);
+    if (sheetTimer.current !== null) window.clearTimeout(sheetTimer.current);
+    sheetTimer.current = window.setTimeout(() => {
+      sheetTimer.current = null;
+      setSheetDragPhase("idle");
+    }, 320);
+  };
+
+  const sheetDragStyle =
+    sheetDragY !== 0 || sheetDragPhase !== "idle"
+      ? { transform: `translateY(${sheetDragY}px)` }
+      : undefined;
+  const sheetDragClass =
+    sheetDragPhase === "dragging"
+      ? "shubhu-mp-sheetDragging"
+      : sheetDragPhase === "settling"
+        ? "shubhu-mp-sheetSnapping"
+        : "";
+
+
+  const toggleTranscript = () => {
+    const next = !transcriptEnabled;
+    setTranscriptEnabled(next);
+    setShowMenu(false);
+    if (next) {
+      // Transcript now follows the same compact-first flow as Lyrics.
+      setView("lyrics");
+      setLyricsExpanded(false);
+      setManualScrollUntil(0);
+    } else {
+      setLyricsExpanded(false);
+    }
+  };
+
+  // Word-by-word highlight driven by the real playback timestamp. The line's
+  // duration is the gap to the next timestamp (or the track duration for the
+  // final line) — no invented timers.
+  const renderLyricText = (text: string, index: number, isActive: boolean) => {
+    if (!isActive) return text || "\u00A0";
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return "\u00A0";
+
+    const lineStart = lyricLines[index]?.time ?? 0;
+    const nextStart = lyricLines[index + 1]?.time;
+    const end = nextStart && nextStart > lineStart ? nextStart : Math.max(duration, lineStart + 4);
+    const lineDuration = Math.max(0.4, end - lineStart);
+    const progress = Math.min(0.999, Math.max(0, (currentTime - lineStart) / lineDuration));
+    const currentWord = Math.floor(progress * words.length);
+
+    return words.map((word, wordIndex) => (
+      <span
+        key={`${word}-${wordIndex}`}
+        className={
+          wordIndex === currentWord
+            ? "shubhu-mp-lyricWordCurrent"
+            : wordIndex < currentWord
+              ? "shubhu-mp-lyricWordSung"
+              : "shubhu-mp-lyricWordUpcoming"
+        }
+      >
+        {word}
+        {wordIndex < words.length - 1 ? " " : ""}
+      </span>
+    ));
+  };
+
+  const progressRow = (
+    <div className="shubhu-mp-progressRow">
+      <span className="shubhu-mp-timeLabel">{formatTime(effectiveTime)}</span>
+      <input
+        className="shubhu-mp-range"
+        type="range"
+        min={0}
+        max={duration || 100}
+        step={0.5}
+        value={effectiveTime}
+        onChange={(event) => {
+          setIsSeeking(true);
+          setSeekVal(Number(event.target.value));
+        }}
+        onPointerUp={() => {
+          if (isSeeking) {
+            setIsSeeking(false);
+            seek(seekVal);
+          }
+        }}
+        onTouchEnd={() => {
+          if (isSeeking) {
+            setIsSeeking(false);
+            seek(seekVal);
+          }
+        }}
+        onMouseUp={() => {
+          if (isSeeking) {
+            setIsSeeking(false);
+            seek(seekVal);
+          }
+        }}
+        style={{
+          background: `linear-gradient(to right, ${ACCENT} ${seekPercent}%, rgba(255,255,255,0.22) ${seekPercent}%)`,
+        }}
+        aria-label="Playback progress"
+      />
+      <span className="shubhu-mp-timeLabel">{formatTime(duration)}</span>
+    </div>
+  );
+
+  const playbackControls = (
+    <div className="shubhu-mp-controls">
+      <button
+        className={`shubhu-mp-controlSmall ${isShuffle ? "shubhu-mp-controlActive" : ""}`}
+        onClick={toggleShuffle}
+        aria-pressed={isShuffle}
+        aria-label="Shuffle"
+      >
+        <Shuffle />
+      </button>
+      <button className="shubhu-mp-controlSkip" onClick={prevTrack} aria-label="Previous song">
+        <SkipBack className="shubhu-mp-skipIcon" />
+      </button>
+      <button
+        className="shubhu-mp-playButton"
+        onClick={togglePlay}
+        disabled={isResolving}
+        aria-label={isPlaying ? "Pause" : "Play"}
+      >
+        {isResolving ? (
+          <Loader2 className="shubhu-mp-spinner" />
+        ) : isPlaying ? (
+          <Pause className="shubhu-mp-playIconFilled" />
+        ) : (
+          <Play className="shubhu-mp-playIcon" />
+        )}
+      </button>
+      <button className="shubhu-mp-controlSkip" onClick={nextTrack} aria-label="Next song">
+        <SkipForward className="shubhu-mp-skipIcon" />
+      </button>
+      <button
+        className={`shubhu-mp-controlSmall ${isRepeat ? "shubhu-mp-controlActive" : ""}`}
+        onClick={toggleRepeat}
+        aria-pressed={isRepeat}
+        aria-label="Repeat"
+      >
+        <Repeat />
+      </button>
+    </div>
+  );
+
+  const renderQueueItem = (
+    track: (typeof queue)[number],
+    index: number,
+    isCurrent: boolean,
+  ) => (
+    <button
+      key={`${track.id}-${index}`}
+      className={`shubhu-mp-queueItem ${isCurrent ? "shubhu-mp-queueItemActive" : ""}`}
+      onClick={() => (isCurrent ? togglePlay() : playTrack(track, queue))}
+    >
+      <img
+        src={getTrackArtworkUrl(track, "max")}
+        alt=""
+        crossOrigin="anonymous"
+        referrerPolicy="no-referrer"
+        onError={(event) => {
+          event.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+        }}
+      />
+      <span className="shubhu-mp-queueMeta">
+        <span className="shubhu-mp-queueTitle">{track.title}</span>
+        <span className="shubhu-mp-queueArtist">{track.artist}</span>
+      </span>
+      {isCurrent ? (
+        <span className="shubhu-mp-equalizer" aria-hidden="true">
+          <i /><i /><i />
+        </span>
+      ) : (
+        <GripVertical className="shubhu-mp-queueGripIcon" aria-hidden="true" />
+      )}
+    </button>
+  );
 
   return (
     <div
       data-theme-region="legacy-dark"
-      className="shubhu-mp-root"
+      className={`shubhu-mp-root ${view === "lyrics" && lyricsExpanded ? "shubhu-mp-rootExpanded" : ""} ${
+        minimizePhase === "dragging"
+          ? "shubhu-mp-rootDragging"
+          : minimizePhase === "settling"
+            ? "shubhu-mp-rootSnapping"
+            : ""
+      }`}
+      style={minimizeY !== 0 ? { transform: `translateY(${minimizeY}px)` } : undefined}
       role="dialog"
       aria-modal="true"
       aria-label="Now playing"
@@ -490,24 +1008,84 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
 
       {/* ── Foreground layout ── */}
       <div className="shubhu-mp-content">
-        <header className="shubhu-mp-topBar">
-          <button
-            className="shubhu-mp-iconButton"
-            onClick={() => (view === "player" ? onClose() : setView("player"))}
-            aria-label={view === "player" ? "Close player" : "Back to player"}
+        {view === "lyrics" ? (
+          <header
+            className="shubhu-mp-lyricsHeader shubhu-mp-headerDraggable"
+            onPointerDown={startPlayerDrag}
+            onPointerMove={movePlayerDrag}
+            onPointerUp={finishPlayerDrag}
+            onPointerCancel={cancelPlayerDrag}
+            onClickCapture={handleHeaderClickCapture}
           >
-            <ChevronDown className="shubhu-mp-chevron" />
-          </button>
-          <span className="shubhu-mp-headerTitle">{headerTitle}</span>
-          <button
-            className="shubhu-mp-iconButton"
-            onClick={() => setShowMenu((open) => !open)}
-            aria-label="More options"
-            aria-expanded={showMenu}
+            <div className="shubhu-mp-lyricsDragArea">
+              <button
+                className="shubhu-mp-lyricsHandle"
+                aria-label={lyricsExpanded ? "Collapse lyrics" : "Expand lyrics"}
+                aria-expanded={lyricsExpanded}
+                onClick={toggleLyricsExpanded}
+              >
+                <span />
+              </button>
+              <div className="shubhu-mp-lyricsTrackRow">
+                <img
+                  src={cover}
+                  alt=""
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                  onError={(event) => {
+                    event.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                  }}
+                />
+                <span className="shubhu-mp-lyricsTrackMeta">
+                  <strong>{currentTrack.title}</strong>
+                  <small>{currentTrack.artist}</small>
+                </span>
+                {transcriptEnabled && (
+                  <span className="shubhu-mp-transcriptPill">
+                    <Captions />
+                    Transcript
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              className="shubhu-mp-lyricsMenuButton"
+              onClick={() => setShowMenu((open) => !open)}
+              aria-label="More options"
+              aria-expanded={showMenu}
+            >
+              <MoreVertical className="shubhu-mp-chevron" />
+            </button>
+          </header>
+        ) : (
+          <header
+            className={`shubhu-mp-topBar ${
+              view === "player" ? "shubhu-mp-topBarDraggable" : "shubhu-mp-headerDraggable"
+            }`}
+            onPointerDown={startPlayerDrag}
+            onPointerMove={movePlayerDrag}
+            onPointerUp={finishPlayerDrag}
+            onPointerCancel={cancelPlayerDrag}
+            onClickCapture={handleHeaderClickCapture}
           >
-            <MoreVertical className="shubhu-mp-chevron" />
-          </button>
-        </header>
+            <button
+              className="shubhu-mp-iconButton"
+              onClick={() => (view === "player" ? onClose() : setView("player"))}
+              aria-label={view === "player" ? "Close player" : "Back to player"}
+            >
+              <ChevronDown className="shubhu-mp-chevron" />
+            </button>
+            <span className="shubhu-mp-headerTitle">{headerTitle}</span>
+            <button
+              className="shubhu-mp-iconButton"
+              onClick={() => setShowMenu((open) => !open)}
+              aria-label="More options"
+              aria-expanded={showMenu}
+            >
+              <MoreVertical className="shubhu-mp-chevron" />
+            </button>
+          </header>
+        )}
 
         <main className="shubhu-mp-body">
           {view === "player" && (
@@ -572,93 +1150,20 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                 <p className="shubhu-mp-songArtist">{currentTrack.artist}</p>
               </div>
 
-              <div className="shubhu-mp-progressRow">
-                <span className="shubhu-mp-timeLabel">{formatTime(effectiveTime)}</span>
-                <input
-                  className="shubhu-mp-range"
-                  type="range"
-                  min={0}
-                  max={duration || 100}
-                  step={0.5}
-                  value={effectiveTime}
-                  onChange={(event) => {
-                    setIsSeeking(true);
-                    setSeekVal(Number(event.target.value));
-                  }}
-                  onPointerUp={() => {
-                    if (isSeeking) {
-                      setIsSeeking(false);
-                      seek(seekVal);
-                    }
-                  }}
-                  onTouchEnd={() => {
-                    if (isSeeking) {
-                      setIsSeeking(false);
-                      seek(seekVal);
-                    }
-                  }}
-                  onMouseUp={() => {
-                    if (isSeeking) {
-                      setIsSeeking(false);
-                      seek(seekVal);
-                    }
-                  }}
-                  style={{
-                    background: `linear-gradient(to right, ${ACCENT} ${seekPercent}%, rgba(255,255,255,0.22) ${seekPercent}%)`,
-                  }}
-                  aria-label="Playback progress"
-                />
-                <span className="shubhu-mp-timeLabel">{formatTime(duration)}</span>
-              </div>
+              {progressRow}
 
-              <div className="shubhu-mp-controls">
-                <button
-                  className={`shubhu-mp-controlSmall ${isShuffle ? "shubhu-mp-controlActive" : ""}`}
-                  onClick={toggleShuffle}
-                  aria-pressed={isShuffle}
-                  aria-label="Shuffle"
-                >
-                  <Shuffle />
-                </button>
-                <button className="shubhu-mp-controlSkip" onClick={prevTrack} aria-label="Previous song">
-                  <SkipBack className="shubhu-mp-skipIcon" />
-                </button>
-                <button
-                  className="shubhu-mp-playButton"
-                  onClick={togglePlay}
-                  disabled={isResolving}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                >
-                  {isResolving ? (
-                    <Loader2 className="shubhu-mp-spinner" />
-                  ) : isPlaying ? (
-                    <Pause className="shubhu-mp-playIconFilled" />
-                  ) : (
-                    <Play className="shubhu-mp-playIcon" />
-                  )}
-                </button>
-                <button className="shubhu-mp-controlSkip" onClick={nextTrack} aria-label="Next song">
-                  <SkipForward className="shubhu-mp-skipIcon" />
-                </button>
-                <button
-                  className={`shubhu-mp-controlSmall ${isRepeat ? "shubhu-mp-controlActive" : ""}`}
-                  onClick={toggleRepeat}
-                  aria-pressed={isRepeat}
-                  aria-label="Repeat"
-                >
-                  <Repeat />
-                </button>
-              </div>
+              {playbackControls}
             </div>
           )}
 
           {view === "lyrics" && (
-            <div className="shubhu-mp-lyricsView">
+            <div className={`shubhu-mp-lyricsView ${lyricsExpanded ? "shubhu-mp-lyricsViewExpanded" : ""}`}>
               <div
                 ref={lyricsScrollRef}
-                className={`shubhu-mp-lyricsScroll shubhu-mp-noScrollbar`}
+                className="shubhu-mp-lyricsScroll shubhu-mp-noScrollbar"
                 onTouchStart={() => setManualScrollUntil(Date.now() + 2600)}
                 onWheel={() => setManualScrollUntil(Date.now() + 2600)}
+                onScroll={handleLyricsScroll}
               >
                 {lyricsLoading ? (
                   <div className="shubhu-mp-placeholder">
@@ -673,68 +1178,50 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : (
                   <div className="shubhu-mp-lyricsInner">
-                    {lyricLines.map((line, index) => (
-                      <button
-                        key={`${line.time}-${index}`}
-                        data-line={index}
-                        className={`shubhu-mp-lyricLine ${index === activeLyric ? "shubhu-mp-lyricActive" : ""}`}
-                        onClick={() => {
-                          setManualScrollUntil(0);
-                          seek(line.time);
-                        }}
-                      >
-                        {line.text || "\u00A0"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                    {transcriptEnabled && (transcriptLoading || transcriptDisabled) && (
+                      <p className="shubhu-mp-transcriptStatus">
+                        {transcriptDisabled
+                          ? "Transcription unavailable — showing original lyrics"
+                          : "Loading transcript…"}
+                      </p>
+                    )}
+                    {lyricLines.map((line, index) => {
+                      const isActive = index === activeLyric;
+                      const isPast = activeLyric !== -1 && index < activeLyric;
+                      const originalIsLatin = !hasNonLatinLetters(line.text);
+                      const romanLine = transcriptEnabled
+                        ? originalIsLatin
+                          ? line.text
+                          : transcriptions[index] || line.text
+                        : line.text;
+                      const regionalLine =
+                        transcriptEnabled &&
+                        !originalIsLatin &&
+                        romanLine.trim().toLowerCase() !== line.text.trim().toLowerCase()
+                          ? line.text
+                          : "";
 
-          {view === "queue" && (
-            <div className="shubhu-mp-queueView">
-              <div className={`shubhu-mp-queueScroll shubhu-mp-noScrollbar`}>
-                <p className="shubhu-mp-queueHeading">Up next</p>
-                {queue.length === 0 ? (
-                  <div className="shubhu-mp-placeholder">
-                    <ListMusic className="shubhu-mp-placeholderIcon" />
-                    <strong>Queue is empty</strong>
-                  </div>
-                ) : (
-                  <div className="shubhu-mp-queueList">
-                    {queue.map((track, index) => {
-                      const isCurrent = track.id === currentTrack.id;
                       return (
                         <button
-                          key={`${track.id}-${index}`}
-                          className={`shubhu-mp-queueItem ${isCurrent ? "shubhu-mp-queueItemActive" : ""}`}
-                          onClick={() =>
-                            isCurrent ? togglePlay() : playTrack(track, queue)
-                          }
+                          key={`${line.time}-${index}`}
+                          data-line={index}
+                          className={`shubhu-mp-lyricLine ${
+                            isActive
+                              ? "shubhu-mp-lyricActive"
+                              : isPast
+                                ? "shubhu-mp-lyricPast"
+                                : "shubhu-mp-lyricUpcoming"
+                          }`}
+                          onClick={() => {
+                            setManualScrollUntil(0);
+                            seek(line.time);
+                          }}
                         >
-                          <img
-                            src={getTrackArtworkUrl(track, "max")}
-                            alt=""
-                            crossOrigin="anonymous"
-                            referrerPolicy="no-referrer"
-                            onError={(event) => {
-                              event.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
-                            }}
-                          />
-                          <span className="shubhu-mp-queueMeta">
-                            <span className="shubhu-mp-queueTitle">{track.title}</span>
-                            <span className="shubhu-mp-queueArtist">
-                              {isCurrent ? "Now playing · " : ""}{track.artist}
-                            </span>
+                          <span className="shubhu-mp-lyricMain">
+                            {renderLyricText(romanLine, index, isActive)}
                           </span>
-                          <span className="shubhu-mp-queueDuration">{formatTime(track.duration)}</span>
-                          {isCurrent ? (
-                            <span className="shubhu-mp-equalizer" aria-hidden="true">
-                              <i /><i /><i />
-                            </span>
-                          ) : (
-                            <span className="shubhu-mp-queueGrip" aria-hidden="true">⋮⋮</span>
+                          {regionalLine && (
+                            <span className="shubhu-mp-lyricRegional">{regionalLine}</span>
                           )}
                         </button>
                       );
@@ -742,15 +1229,63 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
               </div>
+
+              <div className="shubhu-mp-lyricsFooter">
+                {progressRow}
+                {playbackControls}
+              </div>
+            </div>
+          )}
+
+          {view === "queue" && (
+            <div className="shubhu-mp-queueView">
+              <div className={`shubhu-mp-queueScroll shubhu-mp-noScrollbar`}>
+                {queue.length === 0 ? (
+                  <div className="shubhu-mp-placeholder">
+                    <ListMusic className="shubhu-mp-placeholderIcon" />
+                    <strong>Queue is empty</strong>
+                  </div>
+                ) : (
+                  <>
+                    <p className="shubhu-mp-queueHeading">Now Playing</p>
+                    <div className="shubhu-mp-queueNowPlaying">
+                      {renderQueueItem(
+                        queueCurrentIndex >= 0 ? queue[queueCurrentIndex] : currentTrack,
+                        queueCurrentIndex,
+                        true,
+                      )}
+                    </div>
+
+                    <p className="shubhu-mp-queueHeading shubhu-mp-queueHeadingNext">
+                      Up Next
+                    </p>
+                    <div className="shubhu-mp-queueList">
+                      {queue.map((track, index) =>
+                        index === queueCurrentIndex
+                          ? null
+                          : renderQueueItem(track, index, false),
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </main>
 
         {/* ── The same three buttons stay pinned in every view ── */}
-        <nav className="shubhu-mp-bottomBar" aria-label="Player views">
+        <nav
+          className={`shubhu-mp-bottomBar ${view === "lyrics" && lyricsExpanded ? "shubhu-mp-bottomBarHidden" : ""}`}
+          aria-label="Player views"
+          aria-hidden={view === "lyrics" && lyricsExpanded}
+        >
           <button
             className={`shubhu-mp-bottomButton ${view === "lyrics" ? "shubhu-mp-bottomButtonActive" : ""}`}
-            onClick={() => setView((current) => (current === "lyrics" ? "player" : "lyrics"))}
+            onClick={() => {
+              setShowMenu(false);
+              setLyricsExpanded(false);
+              setView((current) => (current === "lyrics" ? "player" : "lyrics"));
+            }}
             aria-pressed={view === "lyrics"}
           >
             <Quote className="shubhu-mp-bottomIcon" />
@@ -766,7 +1301,11 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
           </button>
           <button
             className={`shubhu-mp-bottomButton ${view === "queue" ? "shubhu-mp-bottomButtonActive" : ""}`}
-            onClick={() => setView((current) => (current === "queue" ? "player" : "queue"))}
+            onClick={() => {
+              setShowMenu(false);
+              setLyricsExpanded(false);
+              setView((current) => (current === "queue" ? "player" : "queue"));
+            }}
             aria-pressed={view === "queue"}
           >
             <ListMusic className="shubhu-mp-bottomIcon" />
@@ -779,35 +1318,74 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       {showMenu && (
         <>
           <button className="shubhu-mp-overlay" onClick={closeOverlays} aria-label="Close menu" />
-          <div className={`shubhu-mp-menu shubhu-mp-menuIn`} role="menu">
-            <button className="shubhu-mp-menuItem" onClick={() => { toggleLike(currentTrack); setShowMenu(false); }} role="menuitem">
+          <div
+            className={`shubhu-mp-menu shubhu-mp-menuIn ${view === "lyrics" ? "shubhu-mp-menuLyrics" : ""}`}
+            role="menu"
+          >
+            <button
+              className="shubhu-mp-menuItem"
+              onClick={() => {
+                toggleLike(currentTrack);
+                setShowMenu(false);
+              }}
+              role="menuitem"
+            >
               <Heart className={`shubhu-mp-menuIcon ${isLiked ? "shubhu-mp-menuIconActive" : ""}`} />
-              <span>{isLiked ? "Unlike" : "Like"}</span>
+              <span>Like</span>
             </button>
             <button className="shubhu-mp-menuItem" onClick={openPlaylistSheet} role="menuitem">
               <ListMusic className="shubhu-mp-menuIcon" />
               <span>Add to Playlist</span>
             </button>
-            <button className="shubhu-mp-menuItem" onClick={() => { setShowMenu(false); showToast("Download is coming soon"); }} role="menuitem">
+            <button
+              className="shubhu-mp-menuItem"
+              onClick={() => {
+                setShowMenu(false);
+                showToast("Download is coming soon");
+              }}
+              role="menuitem"
+            >
               <Download className="shubhu-mp-menuIcon" />
               <span>Download</span>
-              <span className="shubhu-mp-placeholderTag">soon</span>
             </button>
-            <button className="shubhu-mp-menuItem" onClick={openSleepSheet} role="menuitem">
+            <button
+              className="shubhu-mp-menuItem"
+              onClick={toggleTranscript}
+              role="menuitemcheckbox"
+              aria-checked={transcriptEnabled}
+            >
+              <Captions className="shubhu-mp-menuIcon" />
+              <span>Transcript</span>
+              <span className="shubhu-mp-menuToggleState">
+                {transcriptEnabled ? "On" : "Off"}
+              </span>
+              <span
+                className={`shubhu-mp-switch ${transcriptEnabled ? "shubhu-mp-switchOn" : ""}`}
+                aria-hidden="true"
+              >
+                <i />
+              </span>
+            </button>
+            <button
+              className="shubhu-mp-menuItem"
+              onClick={() => {
+                setShowMenu(false);
+                setShowSleepSheet(true);
+              }}
+              role="menuitem"
+            >
               <Moon className="shubhu-mp-menuIcon" />
-              <span>Sleep Timer</span>
-              {sleepActive && <span className="shubhu-mp-timerPill">{sleepCountdown}</span>}
+              <span>
+                Sleep Timer
+                {sleepActive && (
+                  <span className="shubhu-mp-menuTimerState"> — {sleepCountdown}</span>
+                )}
+              </span>
             </button>
             <button className="shubhu-mp-menuItem" onClick={goToArtist} role="menuitem">
-              <Disc3 className="shubhu-mp-menuIcon" />
+              <UserRound className="shubhu-mp-menuIcon" />
               <span>Go to Artist</span>
             </button>
-            <button className="shubhu-mp-menuItem" onClick={() => { setShowMenu(false); showToast("Radio is coming soon"); }} role="menuitem">
-              <Radio className="shubhu-mp-menuIcon" />
-              <span>Radio</span>
-              <span className="shubhu-mp-placeholderTag">soon</span>
-            </button>
-            <div className="shubhu-mp-menuDivider" />
             <button className="shubhu-mp-menuItem" onClick={shareTrack} role="menuitem">
               <Share2 className="shubhu-mp-menuIcon" />
               <span>Share</span>
@@ -820,7 +1398,16 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       {showPlaylistSheet && currentTrack && (
         <>
           <button className="shubhu-mp-overlay" onClick={closeOverlays} aria-label="Close sheet" />
-          <div className={`shubhu-mp-sheet shubhu-mp-sheetIn`} role="dialog" aria-label="Add to playlist">
+          <div
+            className={`shubhu-mp-sheet shubhu-mp-sheetIn ${sheetDragClass}`}
+            style={sheetDragStyle}
+            role="dialog"
+            aria-label="Add to playlist"
+            onPointerDown={startSheetDrag}
+            onPointerMove={moveSheetDrag}
+            onPointerUp={finishSheetDrag}
+            onPointerCancel={cancelSheetDrag}
+          >
             <div className="shubhu-mp-sheetHandle" />
             <div className="shubhu-mp-sheetHeader">
               <h2>Add to Playlist</h2>
@@ -920,7 +1507,16 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       {showSleepSheet && (
         <>
           <button className="shubhu-mp-overlay" onClick={closeOverlays} aria-label="Close sheet" />
-          <div className={`shubhu-mp-sheet shubhu-mp-sheetIn`} role="dialog" aria-label="Sleep timer">
+          <div
+            className={`shubhu-mp-sheet shubhu-mp-sheetIn ${sheetDragClass}`}
+            style={sheetDragStyle}
+            role="dialog"
+            aria-label="Sleep timer"
+            onPointerDown={startSheetDrag}
+            onPointerMove={moveSheetDrag}
+            onPointerUp={finishSheetDrag}
+            onPointerCancel={cancelSheetDrag}
+          >
             <div className="shubhu-mp-sheetHandle" />
             <div className="shubhu-mp-sheetHeader">
               <h2>Sleep Timer</h2>
