@@ -40,4 +40,6 @@ export interface UserProfile {
   id: string;
   username: string;
   avatar: string;
+  /** Present only for signed-in accounts; guests have none. */
+  email?: string;
 }

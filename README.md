@@ -1,7 +1,24 @@
 # Shubhu (Spotify‑Clone)
 
 ## What it is
-A zero‑login music web app built with **Next.js 16**, **TypeScript**, **TailwindCSS**, and **SQLite**. It uses the public iTunes Search API for track metadata and scrapes YouTube to stream audio.
+A music web app built with **Next.js 16**, **TypeScript**, **TailwindCSS**, and **Postgres**. It works instantly as a guest, and you can sign in with an **email + 4‑digit PIN** to sync your library across devices. It uses the public iTunes Search API for track metadata and scrapes YouTube to stream audio.
+
+## Database & accounts
+
+Data lives in hosted Postgres (Neon, Supabase, or any Postgres), so a laptop and a phone share the same library.
+
+1. Create a database and copy its connection string.
+2. `cp .env.example .env` and fill in:
+   - `DATABASE_URL` – the Postgres connection string
+   - `AUTH_SECRET` – `openssl rand -hex 32` (set once; changing it invalidates every PIN)
+3. Tables are created automatically on the first request.
+4. Optional: bring over data from the old local `music.db` with `npm run db:import-sqlite`.
+
+**What syncs when signed in:** liked songs, playlists, listening history / recently played (and so the home recommendations), saved playlists, followed artists, and the (currently paused) Downloads list. Changes made on one device appear on the others when you return to the tab, and within ~45 seconds while it's open. Anything you saved as a guest on a device is merged into the account the first time you sign in on it.
+
+**PINs:** a 4‑digit PIN is weak by nature, so it's hashed with a server secret, and every 5th wrong attempt locks the account (15 min, doubling up to 24 h). There is no email verification or PIN reset, so a forgotten PIN can't be recovered.
+
+**Downloads (paused):** the code for saving audio on the device (IndexedDB) and syncing the list of downloaded songs is in place but switched off with `DOWNLOADS_ENABLED` in `src/lib/features.ts`, because YouTube currently rejects the audio request used to fetch songs.
 
 ## Quick start (local)
 ```bash
@@ -42,14 +59,12 @@ A minimal `vercel.json` is included to tell Vercel to treat the app as a Next.js
 ```
 
 ## What’s been done
-- Fixed TypeScript errors for SQLite.
 - Replaced unsafe `new Date()` usage with a client‑side greeting.
 - All UI components, API routes and DB schema are in place.
 - Project builds (`npm run build`) without errors.
 
 ## Next steps (optional)
 - Add loading spinners / toast notifications.
-- Hook a small backend if you ever need cross‑device sync.
 - Polish the UI / add more playlist features.
 
 ---

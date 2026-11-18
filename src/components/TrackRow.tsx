@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Play, Pause, Heart, Plus, Check, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2 } from "lucide-react";
+import { Play, Pause, Heart, Plus, Check, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2, Download, DownloadCloud } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Track } from "@/lib/types";
 import { usePlayer } from "@/context/PlayerContext";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
+import { useDownload } from "@/hooks/useDownload";
+import { DOWNLOADS_ENABLED } from "@/lib/features";
 
 interface TrackRowProps {
   track: Track;
@@ -27,6 +29,7 @@ function formatDuration(seconds: number): string {
 
 export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId, wrapText = false }: TrackRowProps) {
   const router = useRouter();
+  const dl = useDownload(track);
   const { currentTrack, isPlaying, playTrack, togglePlay, likedSongIds, toggleLike, playlists, addToPlaylist, queue: appQueue, setAppQueue, playNext, removeFromPlaylist } = usePlayer();
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
   const [showMobilePlaylistMenu, setShowMobilePlaylistMenu] = useState(false);
@@ -311,6 +314,33 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                     Remove from this playlist
                   </button>
                 )}
+                {DOWNLOADS_ENABLED && (
+                  <>
+                <button
+                  onClick={() => {
+                    void dl.toggle();
+                    if (!dl.error) setTimeout(closeMenus, 0);
+                  }}
+                  disabled={dl.busy}
+                  className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-800 flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                >
+                  {dl.offline ? <DownloadCloud className="w-4 h-4 text-emerald-400" /> : <Download className="w-4 h-4" />}
+                  {dl.label}
+                </button>
+                {dl.inList && !dl.offline && !dl.busy && (
+                  <button
+                    onClick={() => {
+                      void dl.removeFromList();
+                      closeMenus();
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-800 flex items-center gap-2 text-rose-400 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Remove from downloads
+                  </button>
+                )}
+                  </>
+                )}
                 <button
                   onClick={() => {
                     toggleLike(track);
@@ -389,6 +419,30 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                   <ListPlus className="w-5 h-5" />
                   <span>Add to Playlist</span>
                 </button>
+                {DOWNLOADS_ENABLED && (
+                  <>
+                <button
+                  onClick={() => void dl.toggle()}
+                  disabled={dl.busy}
+                  className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer disabled:opacity-60"
+                >
+                  {dl.offline ? <DownloadCloud className="w-5 h-5 text-emerald-400" /> : <Download className="w-5 h-5" />}
+                  <span>{dl.label}</span>
+                </button>
+                {dl.inList && !dl.offline && !dl.busy && (
+                  <button
+                    onClick={() => {
+                      void dl.removeFromList();
+                      closeMenus();
+                    }}
+                    className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium text-rose-400 hover:text-rose-300 cursor-pointer"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>Remove from downloads</span>
+                  </button>
+                )}
+                  </>
+                )}
                 <button
                   onClick={() => toggleLike(track)}
                   className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer"

@@ -6,6 +6,13 @@ import { CURATED_TRACKS } from "@/lib/musicProvider";
 import { getSimilarSongs } from "@/lib/similarity";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 import { isValidVideoId } from "@/lib/videoId";
+import {
+  saveOfflineAudio,
+  getOfflineAudio,
+  removeOfflineAudio,
+  clearOfflineAudio,
+  listOfflineAudio,
+} from "@/lib/offlineAudio";
 
 interface YTPlayerInstance {
   loadVideoById: (params: { videoId: string; startSeconds?: number } | string) => void;
@@ -37,6 +44,37 @@ export const SLEEP_TIMER_OPTIONS: SleepTimerOption[] = [
 ];
 
 export type ThemeId = "aurora" | "ocean" | "graphite";
+
+export interface AuthResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** Wraps an <audio> element in the same interface as the YouTube player, so
+ *  downloaded songs play through the exact same transport code. */
+function createAudioPlayer(audio: HTMLAudioElement): YTPlayerInstance {
+  return {
+    loadVideoById: () => {},
+    playVideo: () => {
+      audio.play().catch(() => {});
+    },
+    pauseVideo: () => audio.pause(),
+    seekTo: (seconds) => {
+      audio.currentTime = seconds;
+    },
+    setVolume: (v) => {
+      audio.volume = Math.min(1, Math.max(0, v / 100));
+    },
+    getVolume: () => audio.volume * 100,
+    setPlaybackRate: (r) => {
+      audio.playbackRate = r;
+    },
+    getPlaybackRate: () => audio.playbackRate,
+    getAvailablePlaybackRates: () => [0.5, 0.75, 1, 1.25, 1.5, 2],
+    getCurrentTime: () => audio.currentTime,
+    getDuration: () => (Number.isFinite(audio.duration) ? audio.duration : 0),
+  };
+}
 
 interface PlayerContextType {
   currentTrack: Track | null;
@@ -89,6 +127,17 @@ interface PlayerContextType {
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<void>;
   toggleSavedPlaylist: (playlist: SavedPlaylist) => void;
   toggleFollowArtist: (artist: FollowedArtist) => void;
+  /** Songs in the account's synced Downloads list (on any device). */
+  downloads: Track[];
+  /** Track ids whose audio is stored on THIS device and plays offline. */
+  offlineIds: Set<string>;
+  /** 0..1 while a download is in progress, keyed by track id. */
+  downloadProgress: Record<string, number>;
+  downloadTrack: (track: Track) => Promise<AuthResult>;
+  removeDownload: (track: Track) => Promise<void>;
+  signIn: (email: string, pin: string) => Promise<AuthResult>;
+  signUp: (email: string, pin: string) => Promise<AuthResult>;
+  signOut: () => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -115,6 +164,36 @@ function lsGetJSON<T>(key: string, fallback: T): T {
   if (!raw) return fallback;
   try { return JSON.parse(raw) as T; } catch { return fallback; }
 }
+/** Writes only when the value differs; returns whether it changed. */
+function lsSetIfChanged(key: string, value: string): boolean {
+  if (lsGet(key) === value) return false;
+  lsSet(key, value);
+  return true;
+}
+
+// Everything cached from the signed-in library. "[]" rather than removal so
+// the home page's storage listener (which ignores missing keys) also clears.
+const LIBRARY_CACHE_KEYS = [
+  "shubhu_liked_ids",
+  "likedSongs",
+  "shubhu_liked_songs",
+  "shubhu_playlists",
+  "playlists",
+  "savedPlaylists",
+  "shubhu_followed_artists",
+  "recentlyPlayed",
+  "shubhu_downloads",
+];
+function clearLibraryCaches() {
+  LIBRARY_CACHE_KEYS.forEach((key) => lsSet(key, "[]"));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("storage"));
+}
+
+const REFRESH_MIN_GAP_MS = 4000;
+const REFRESH_INTERVAL_MS = 45_000;
+const RECENT_KEEP = 6;
+// Don't prune a just-saved local download before the server list has caught up.
+const DOWNLOAD_PRUNE_GRACE_MS = 2 * 60_000;
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Start on Aurora Glow so SSR and the first client render match. The
@@ -196,13 +275,45 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return Array.isArray(stored) ? stored : [];
   });
 
-  // YouTube player reference
+  // Synced Downloads list (any device) and which of those are on this device.
+  const [downloads, setDownloads] = useState<Track[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = lsGetJSON<Track[]>("shubhu_downloads", []);
+    return Array.isArray(stored) ? stored : [];
+  });
+  const [offlineIds, setOfflineIds] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+  const offlineIdsRef = useRef<Set<string>>(new Set());
+
+  // Library sync bookkeeping.
+  const refreshSeqRef = useRef(0);         // newest request wins; stale responses are dropped
+  const lastRefreshAtRef = useRef(0);
+  const pendingWritesRef = useRef(0);      // in-flight local changes the server hasn't seen yet
+  const userIdRef = useRef<string | null>(null);
+
+  // YouTube player reference. `ytPlayerRef` is the ACTIVE engine: either the
+  // real YouTube player or the <audio> adapter used for downloaded songs.
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
+  const ytRealRef = useRef<YTPlayerInstance | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioPlayerRef = useRef<YTPlayerInstance | null>(null);
+  const audioObjectUrlRef = useRef<string | null>(null);
+  const handleSongEndRef = useRef<() => void>(() => {});
   const timeUpdateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sleep timer deadline lives in a ref so the interval can read it without restarting.
   const sleepEndsAtRef = useRef<number | null>(null);
   const sleepAtEndOfSongRef = useRef(false);
+
+  const resetLibraryState = () => {
+    refreshSeqRef.current++; // drop any response still in flight
+    clearLibraryCaches();
+    setLikedSongIds(new Set());
+    setPlaylists([]);
+    setSavedPlaylists([]);
+    setFollowedArtists([]);
+    setDownloads([]);
+  };
 
   // ── 1. Initialize User & Device ID on mount ──────────────────────────────
   useEffect(() => {
@@ -231,47 +342,211 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {}
 
-    // Then try to sync with the API (best-effort)
+    // Which downloaded songs are stored on this device.
+    listOfflineAudio()
+      .then((rows) => {
+        const ids = new Set(rows.map((r) => r.id));
+        offlineIdsRef.current = ids;
+        setOfflineIds(ids);
+      })
+      .catch(() => {});
+
+    // Then ask the server who we are: the signed-in account if the session
+    // cookie is valid, otherwise this device's guest profile (best-effort).
     fetch(`/api/user?id=${deviceId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-          lsSet("shubhu_user", JSON.stringify(data.user));
-        }
+        if (!data.user) return;
+        // Signed in before, but the session is gone (expired or revoked): the
+        // cached library belongs to that account, so don't show it to a guest.
+        if (cachedUser?.email && !data.user.email) resetLibraryState();
+        setUser(data.user);
+        lsSet("shubhu_user", JSON.stringify(data.user));
       })
       .catch((err) => console.error("Error fetching user:", err));
   }, []);
 
-  // ── 2. Sync liked songs & playlists from API once user is loaded ──────────
-  useEffect(() => {
-    if (user?.id) {
-      refreshLibrary();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  // ── 2. Library sync ────────────────────────────────────────────────────────
+  // The server is the source of truth. We pull on login, when the tab regains
+  // focus, when the network returns, and every 45 s while visible, so changes
+  // made on another device show up here.
 
-  const refreshLibrary = async () => {
-    if (!user?.id) return;
+  /** POST to /api/library as the current identity; tracks in-flight writes. */
+  const postLibrary = async (body: Record<string, unknown>): Promise<boolean> => {
+    pendingWritesRef.current++;
     try {
-      const res = await fetch(`/api/library?userId=${user.id}`);
+      const res = await fetch("/api/library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userIdRef.current, ...body }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      pendingWritesRef.current--;
+    }
+  };
+
+  /** Uploads data that only ever lived in this browser, once per identity. */
+  const importLocalOnce = async (userId: string): Promise<boolean> => {
+    if (lsGet("shubhu_imported_for") === userId) return true;
+    const payload = {
+      savedPlaylists: lsGetJSON<SavedPlaylist[]>("savedPlaylists", []),
+      followedArtists: lsGetJSON<FollowedArtist[]>("shubhu_followed_artists", []),
+      recentlyPlayed: lsGetJSON<Track[]>("recentlyPlayed", []),
+    };
+    const hasData = Object.values(payload).some((v) => Array.isArray(v) && v.length > 0);
+    if (hasData && !(await postLibrary({ action: "import_local", ...payload }))) return false;
+    lsSet("shubhu_imported_for", userId);
+    return true;
+  };
+
+  /** Re-sends downloads whose server write failed (e.g. while offline). */
+  const flushPendingDownloads = async () => {
+    const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
+    if (!Array.isArray(pending) || pending.length === 0) return;
+    const stillPending: Track[] = [];
+    for (const track of pending) {
+      if (!(await postLibrary({ action: "add_download", track }))) stillPending.push(track);
+    }
+    lsSet("shubhu_download_pending", JSON.stringify(stillPending));
+  };
+
+  const pullLibrary = async (force: boolean) => {
+    const userId = user?.id;
+    if (!userId) return;
+    if (!force) {
+      if (pendingWritesRef.current > 0) return;
+      if (Date.now() - lastRefreshAtRef.current < REFRESH_MIN_GAP_MS) return;
+    }
+    lastRefreshAtRef.current = Date.now();
+    userIdRef.current = userId;
+
+    try {
+      // Never overwrite local-only data with the server's copy before it has
+      // been uploaded; if the upload fails, keep the local copy and retry later.
+      if (!(await importLocalOnce(userId))) return;
+      await flushPendingDownloads();
+
+      const seq = ++refreshSeqRef.current;
+      const res = await fetch(`/api/library?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
+      if (!res.ok) return;
       const data = await res.json();
-      if (data.likedSongs) {
-        const ids = (data.likedSongs as Track[]).map((s) => s.id);
-        setLikedSongIds(new Set(ids));
-        lsSet("shubhu_liked_ids", JSON.stringify(ids));
-        lsSet("likedSongs", JSON.stringify(data.likedSongs));
-        lsSet("shubhu_liked_songs", JSON.stringify(data.likedSongs));
-      }
-      if (data.playlists) {
-        setPlaylists(data.playlists as Playlist[]);
-        lsSet("shubhu_playlists", JSON.stringify(data.playlists));
-        lsSet("playlists", JSON.stringify(data.playlists));
-      }
+      // Superseded by a newer request, a sign-out/in, or a local change that
+      // happened while we were waiting: skip, the next pull will converge.
+      if (seq !== refreshSeqRef.current || userIdRef.current !== userId) return;
+      if (!force && pendingWritesRef.current > 0) return;
+
+      applyLibrary(data);
     } catch (err) {
       console.error("Error refreshing library (API):", err);
     }
   };
+
+  const applyLibrary = (data: {
+    likedSongs?: Track[];
+    playlists?: Playlist[];
+    recentlyPlayed?: Track[];
+    savedPlaylists?: SavedPlaylist[];
+    followedArtists?: FollowedArtist[];
+    downloads?: Track[];
+  }) => {
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    let notifyHome = false;
+
+    if (data.likedSongs) {
+      const ids = data.likedSongs.map((s) => s.id);
+      setLikedSongIds((prev) =>
+        prev.size === ids.length && ids.every((id) => prev.has(id)) ? prev : new Set(ids),
+      );
+      lsSetIfChanged("shubhu_liked_ids", JSON.stringify(ids));
+      const json = JSON.stringify(data.likedSongs);
+      if (lsSetIfChanged("likedSongs", json)) notifyHome = true;
+      lsSetIfChanged("shubhu_liked_songs", json);
+    }
+
+    if (data.playlists) {
+      const next = data.playlists;
+      setPlaylists((prev) => (same(prev, next) ? prev : next));
+      const json = JSON.stringify(next);
+      lsSetIfChanged("shubhu_playlists", json);
+      lsSetIfChanged("playlists", json);
+    }
+
+    if (data.recentlyPlayed && pendingWritesRef.current === 0) {
+      // Recently played drives the home page's recommendations; it listens for
+      // "storage" events, so only fire one when it actually changed.
+      const recents = data.recentlyPlayed.slice(0, RECENT_KEEP);
+      if (lsSetIfChanged("recentlyPlayed", JSON.stringify(recents))) notifyHome = true;
+    }
+
+    if (data.savedPlaylists) {
+      const next = data.savedPlaylists;
+      setSavedPlaylists((prev) => (same(prev, next) ? prev : next));
+      lsSetIfChanged("savedPlaylists", JSON.stringify(next));
+    }
+
+    if (data.followedArtists) {
+      const next = data.followedArtists;
+      setFollowedArtists((prev) => (same(prev, next) ? prev : next));
+      lsSetIfChanged("shubhu_followed_artists", JSON.stringify(next));
+    }
+
+    if (data.downloads) {
+      const next = data.downloads;
+      setDownloads((prev) => (same(prev, next) ? prev : next));
+      lsSetIfChanged("shubhu_downloads", JSON.stringify(next));
+
+      // A song removed from Downloads on another device: free its audio here.
+      const keep = new Set(next.map((t) => t.id));
+      const pending = new Set(lsGetJSON<Track[]>("shubhu_download_pending", []).map((t) => t.id));
+      listOfflineAudio()
+        .then(async (rows) => {
+          const stale = rows.filter(
+            (r) => !keep.has(r.id) && !pending.has(r.id) && Date.now() - r.savedAt > DOWNLOAD_PRUNE_GRACE_MS,
+          );
+          if (stale.length === 0) return;
+          await Promise.all(stale.map((r) => removeOfflineAudio(r.id)));
+          const gone = new Set(stale.map((r) => r.id));
+          offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((id) => !gone.has(id)));
+          setOfflineIds(new Set(offlineIdsRef.current));
+        })
+        .catch(() => {});
+    }
+
+    if (notifyHome && typeof window !== "undefined") window.dispatchEvent(new Event("storage"));
+  };
+
+  // Public API: a forced pull (used right after local writes).
+  const refreshLibrary = () => pullLibrary(true);
+
+  // Always call the freshest pullLibrary from long-lived listeners.
+  const pullRef = useRef(pullLibrary);
+  useEffect(() => {
+    pullRef.current = pullLibrary;
+  });
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+    if (!user?.id) return;
+
+    pullRef.current(true);
+
+    const poll = () => {
+      if (document.visibilityState === "visible") pullRef.current(false);
+    };
+    document.addEventListener("visibilitychange", poll);
+    window.addEventListener("focus", poll);
+    window.addEventListener("online", poll);
+    const interval = setInterval(poll, REFRESH_INTERVAL_MS);
+    return () => {
+      document.removeEventListener("visibilitychange", poll);
+      window.removeEventListener("focus", poll);
+      window.removeEventListener("online", poll);
+      clearInterval(interval);
+    };
+  }, [user?.id]);
 
   // ── 3. Load YouTube IFrame API ─────────────────────────────────────────────
   const isRepeatRef = useRef(isRepeat);
@@ -421,10 +696,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const initPlayer = () => {
       if (!window.YT || !window.YT.Player) return;
-      if (ytPlayerRef.current) return;
+      if (ytRealRef.current) return;
 
       try {
-        ytPlayerRef.current = new window.YT.Player("yt-audio-player-host", {
+        const created = new window.YT.Player("yt-audio-player-host", {
           height: "100",
           width: "100",
           playerVars: {
@@ -439,9 +714,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           events: {
             onReady: () => {
               try {
-                if (ytPlayerRef.current) {
-                  ytPlayerRef.current.setVolume(volume * 100);
-                  const rates = ytPlayerRef.current.getAvailablePlaybackRates();
+                if (ytRealRef.current) {
+                  ytRealRef.current.setVolume(volume * 100);
+                  const rates = ytRealRef.current.getAvailablePlaybackRates();
                   if (Array.isArray(rates) && rates.length > 0) {
                     setAvailableRates(rates);
                   }
@@ -449,6 +724,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               } catch {}
             },
             onStateChange: (event: { data: number }) => {
+              // Ignore the iframe's events while a downloaded song plays through <audio>.
+              if (ytPlayerRef.current !== ytRealRef.current) return;
               // YT.PlayerState: -1 = unstarted, 0 = ended, 1 = playing, 2 = paused, 3 = buffering, 5 = cued
               if (event.data === 1) {
                 setIsPlaying(true);
@@ -461,6 +738,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             },
           },
         });
+        ytRealRef.current = created;
+        // Don't steal the active engine if a downloaded song is already playing.
+        if (ytPlayerRef.current !== audioPlayerRef.current) ytPlayerRef.current = created;
       } catch (e) {
         console.error("Error creating YT Player:", e);
       }
@@ -485,6 +765,39 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the latest handleSongEnd reachable from long-lived listeners.
+  useEffect(() => {
+    handleSongEndRef.current = handleSongEnd;
+  });
+
+  // <audio> engine for downloaded songs (works with no network at all).
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audioElRef.current = audio;
+    audioPlayerRef.current = createAudioPlayer(audio);
+
+    const active = () => ytPlayerRef.current === audioPlayerRef.current;
+    const onPlay = () => active() && setIsPlaying(true);
+    const onPause = () => active() && !audio.ended && setIsPlaying(false);
+    const onEnded = () => {
+      if (!active()) return;
+      setIsPlaying(false);
+      handleSongEndRef.current();
+    };
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("ended", onEnded);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("ended", onEnded);
+      if (audioObjectUrlRef.current) URL.revokeObjectURL(audioObjectUrlRef.current);
+    };
   }, []);
 
   // ── 4. Time tracker (poll getCurrentTime() every 250ms only while playing) ──
@@ -633,20 +946,49 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     setIsResolving(true);
     try {
-      const player = ytPlayerRef.current;
-      if (player?.loadVideoById) {
-        player.loadVideoById({ videoId: candidateId, startSeconds: 0 });
-        player.playVideo();
+      // Downloaded on this device? Play the stored audio, no network needed.
+      let offlineUrl: string | null = null;
+      const audioEl = audioElRef.current;
+      if (audioEl && audioPlayerRef.current && offlineIdsRef.current.has(track.id)) {
+        try {
+          const blob = await getOfflineAudio(track.id);
+          if (blob) offlineUrl = URL.createObjectURL(blob);
+        } catch {
+          /* fall back to streaming */
+        }
+      }
+
+      if (offlineUrl && audioEl && audioPlayerRef.current) {
+        try {
+          ytRealRef.current?.pauseVideo();
+        } catch { /* iframe not ready */ }
+        ytPlayerRef.current = audioPlayerRef.current;
+        if (audioObjectUrlRef.current) URL.revokeObjectURL(audioObjectUrlRef.current);
+        audioObjectUrlRef.current = offlineUrl;
+        audioEl.src = offlineUrl;
+        audioEl.volume = isMuted ? 0 : volume;
+        audioEl.playbackRate = playbackRate;
+        audioPlayerRef.current.playVideo();
         setIsPlaying(true);
+      } else {
+        // Hand control back to the YouTube player (stop any offline audio first).
+        if (audioEl && ytPlayerRef.current === audioPlayerRef.current && ytRealRef.current) {
+          ytPlayerRef.current = ytRealRef.current;
+          audioEl.pause();
+          audioEl.removeAttribute("src");
+          audioEl.load();
+        }
+        const player = ytPlayerRef.current;
+        if (player?.loadVideoById) {
+          player.loadVideoById({ videoId: candidateId, startSeconds: 0 });
+          player.playVideo();
+          setIsPlaying(true);
+        }
       }
 
       // Record in history (best-effort)
       if (user?.id) {
-        fetch("/api/library", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "record_history", userId: user.id, track }),
-        }).catch(() => {});
+        void postLibrary({ action: "record_history", track });
       }
 
       // Update recentlyPlayed in localStorage (zero login / local storage safe)
@@ -989,37 +1331,171 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Save / unsave a YouTube playlist (keyed by id, no duplicates) ─────────
   const toggleSavedPlaylist = (playlist: SavedPlaylist) => {
-    setSavedPlaylists((prev) => {
-      const exists = prev.some((p) => p.id === playlist.id);
-      const updated = exists
-        ? prev.filter((p) => p.id !== playlist.id)
-        : [...prev, {
-            id: playlist.id,
-            title: playlist.title,
-            author: playlist.author,
-            thumbnail: playlist.thumbnail,
-            trackCount: playlist.trackCount,
-          }];
-      lsSet("savedPlaylists", JSON.stringify(updated));
-      return updated;
-    });
+    const exists = savedPlaylists.some((p) => p.id === playlist.id);
+    const entry: SavedPlaylist = {
+      id: playlist.id,
+      title: playlist.title,
+      author: playlist.author,
+      thumbnail: playlist.thumbnail,
+      trackCount: playlist.trackCount,
+    };
+    const updated = exists ? savedPlaylists.filter((p) => p.id !== playlist.id) : [...savedPlaylists, entry];
+    setSavedPlaylists(updated);
+    lsSet("savedPlaylists", JSON.stringify(updated));
+
+    void postLibrary(
+      exists
+        ? { action: "unsave_playlist", savedPlaylistId: playlist.id }
+        : { action: "save_playlist", savedPlaylist: entry },
+    );
   };
 
-  // ── Follow / unfollow an artist (local-only, de-duplicated by browseId) ───
+  // ── Follow / unfollow an artist (de-duplicated by browseId) ───────────────
   const toggleFollowArtist = (artist: FollowedArtist) => {
     if (!artist.browseId) return;
-    setFollowedArtists((prev) => {
-      const exists = prev.some((a) => a.browseId === artist.browseId);
-      const updated = exists
-        ? prev.filter((a) => a.browseId !== artist.browseId)
-        : [...prev, {
-            browseId: artist.browseId,
-            name: artist.name,
-            thumbnail: artist.thumbnail,
-          }];
-      lsSet("shubhu_followed_artists", JSON.stringify(updated));
-      return updated;
+    const exists = followedArtists.some((a) => a.browseId === artist.browseId);
+    const entry: FollowedArtist = { browseId: artist.browseId, name: artist.name, thumbnail: artist.thumbnail };
+    const updated = exists
+      ? followedArtists.filter((a) => a.browseId !== artist.browseId)
+      : [...followedArtists, entry];
+    setFollowedArtists(updated);
+    lsSet("shubhu_followed_artists", JSON.stringify(updated));
+
+    void postLibrary(
+      exists
+        ? { action: "unfollow_artist", browseId: artist.browseId }
+        : { action: "follow_artist", artist: entry },
+    );
+  };
+
+  // ── Downloads ──────────────────────────────────────────────────────────────
+  // The audio is stored on this device (IndexedDB); the *list* of downloaded
+  // songs is saved to the account so every device can see it.
+  const downloadTrack = async (track: Track): Promise<AuthResult> => {
+    const id = track.id;
+    const videoId = isValidVideoId(track.youtubeId) ? track.youtubeId : isValidVideoId(track.id) ? track.id : null;
+    if (!videoId) return { ok: false, error: "This song can't be downloaded." };
+    if (offlineIdsRef.current.has(id)) return { ok: true };
+    if (downloadProgress[id] !== undefined) return { ok: true }; // already in progress
+
+    setDownloadProgress((p) => ({ ...p, [id]: 0 }));
+    try {
+      const res = await fetch(`/api/download?videoId=${encodeURIComponent(videoId)}`);
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => null);
+        return { ok: false, error: err?.error || "Download failed." };
+      }
+
+      const total = Number(res.headers.get("Content-Length")) || 0;
+      const reader = res.body.getReader();
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as Uint8Array<ArrayBuffer>);
+        received += value.length;
+        if (total > 0) setDownloadProgress((p) => ({ ...p, [id]: Math.min(0.99, received / total) }));
+      }
+      // A real song is far larger than this; a tiny body is an error page.
+      if (received < 20_000) return { ok: false, error: "Download failed." };
+
+      await saveOfflineAudio(id, new Blob(chunks, { type: res.headers.get("Content-Type") || "audio/mp4" }));
+      offlineIdsRef.current = new Set(offlineIdsRef.current).add(id);
+      setOfflineIds(new Set(offlineIdsRef.current));
+
+      setDownloads((prev) => {
+        const next = [track, ...prev.filter((t) => t.id !== id)];
+        lsSet("shubhu_downloads", JSON.stringify(next));
+        return next;
+      });
+      // If the server can't be reached, remember to send it later so the
+      // download isn't treated as removed by the next sync.
+      if (!(await postLibrary({ action: "add_download", track }))) {
+        const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
+        lsSet("shubhu_download_pending", JSON.stringify([track, ...pending.filter((t) => t.id !== id)]));
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Download failed." };
+    } finally {
+      setDownloadProgress((p) => {
+        const { [id]: _done, ...rest } = p;
+        void _done;
+        return rest;
+      });
+    }
+  };
+
+  const removeDownload = async (track: Track) => {
+    const id = track.id;
+    try {
+      await removeOfflineAudio(id);
+    } catch {}
+    offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((x) => x !== id));
+    setOfflineIds(new Set(offlineIdsRef.current));
+    setDownloads((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      lsSet("shubhu_downloads", JSON.stringify(next));
+      return next;
     });
+    const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
+    lsSet("shubhu_download_pending", JSON.stringify(pending.filter((t) => t.id !== id)));
+    await postLibrary({ action: "remove_download", trackId: id });
+  };
+
+  // ── Accounts (email + 4-digit PIN) ─────────────────────────────────────────
+  const authRequest = async (action: "signup" | "signin", email: string, pin: string): Promise<AuthResult> => {
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, email, pin, guestId: lsGet("shubhu_device_id") }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.user) return { ok: false, error: data.error || "Could not sign in. Please try again." };
+      // The user.id change triggers a pull, which first uploads this device's
+      // local-only data to the account, then loads the account's library.
+      setUser(data.user);
+      lsSet("shubhu_user", JSON.stringify(data.user));
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Can't reach the server. Check your connection." };
+    }
+  };
+
+  const signIn = (email: string, pin: string) => authRequest("signin", email, pin);
+  const signUp = (email: string, pin: string) => authRequest("signup", email, pin);
+
+  const signOut = async () => {
+    try {
+      await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "signout" }),
+      });
+    } catch {}
+
+    // Leave nothing of the account on this device: library caches, downloaded
+    // audio, and the identity itself. A fresh guest id starts clean.
+    resetLibraryState();
+    await clearOfflineAudio().catch(() => {});
+    offlineIdsRef.current = new Set();
+    setOfflineIds(new Set());
+    lsSet("shubhu_download_pending", "[]");
+    lsSet("shubhu_user", "null");
+
+    const guestId = "device_" + Math.random().toString(36).substring(2, 10);
+    lsSet("shubhu_device_id", guestId);
+    setUser(null);
+    userIdRef.current = null;
+    try {
+      const data = await (await fetch(`/api/user?id=${guestId}`)).json();
+      if (data.user) {
+        setUser(data.user);
+        lsSet("shubhu_user", JSON.stringify(data.user));
+      }
+    } catch {}
   };
 
   const playNext = (track: Track) => {
@@ -1077,6 +1553,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         toggleLike, updateUser, refreshLibrary, createPlaylist, addToPlaylist,
         updatePlaylist, deletePlaylist, removeFromPlaylist, toggleSavedPlaylist,
         toggleFollowArtist, setTheme,
+        downloads, offlineIds, downloadProgress, downloadTrack, removeDownload,
+        signIn, signUp, signOut,
       }}
     >
       {children}

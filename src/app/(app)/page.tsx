@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,6 +36,7 @@ import { Track, Playlist } from "@/lib/types";
 import { FEATURED_PLAYLISTS, CURATED_TRACKS } from "@/lib/musicProvider";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { PlaylistCollage } from "@/components/PlaylistCollage";
+import { DOWNLOADS_ENABLED } from "@/lib/features";
 import { getDefaultArtworkFallbackUrl, getTrackArtworkFallbackUrl, getTrackArtworkUrl, getYouTubeArtworkUrl } from "@/lib/artwork";
 
 // Cinematic carousel per-offset values (index = distance from the active cover).
@@ -94,7 +96,7 @@ const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
 export default function Home() {
   const router = useRouter();
   const { currentView, setCurrentView, searchQuery, setSearchQuery, openCreatePlaylist } = useAppShell();
-  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, toggleLike, queue, setAppQueue, deletePlaylist } = usePlayer();
+  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, toggleLike, queue, setAppQueue, deletePlaylist, downloads, offlineIds, downloadProgress, downloadTrack } = usePlayer();
 
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [searchArtists, setSearchArtists] = useState<{ name: string; image: string; browseId: string }[]>([]);
@@ -1786,6 +1788,80 @@ export default function Home() {
             </div>
           )}
 
+          {/* ===================== DOWNLOADS VIEW ===================== */}
+          {DOWNLOADS_ENABLED && currentView === "downloads" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div
+                style={{
+                  background: `linear-gradient(
+                    180deg,
+                    var(--theme-accent-strong) 0%,
+                    var(--theme-accent) 40%,
+                    var(--color-neutral-950) 100%
+                  )`,
+                }}
+                className="theme-dark-surface flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl"
+              >
+                <div className="w-40 h-40 sm:w-[200px] sm:h-[200px] rounded-lg bg-white/20 backdrop-blur-md shadow-2xl flex items-center justify-center shrink-0 border border-white/20">
+                  <Download className="w-24 h-24 text-white" />
+                </div>
+                <div className="text-center sm:text-left flex-1 min-w-0">
+                  <p className="text-xs uppercase font-bold tracking-wider text-emerald-200">SYNCED WITH YOUR ACCOUNT</p>
+                  <h1 className="text-4xl sm:text-5xl font-black text-white mt-1 mb-3 tracking-tight">Downloads</h1>
+                  <p className="text-sm text-neutral-300 flex items-center justify-center sm:justify-start gap-2">
+                    <span className="font-semibold text-white">{user?.username || "You"}</span>
+                    <span>•</span>
+                    <span>{downloads.length} songs</span>
+                    <span>•</span>
+                    <span>{downloads.filter((t) => offlineIds.has(t.id)).length} on this device</span>
+                  </p>
+                </div>
+              </div>
+
+              {downloads.length > 0 && (
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => playTrack(downloads.find((t) => offlineIds.has(t.id)) ?? downloads[0], downloads)}
+                    className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
+                    title="Play downloads"
+                  >
+                    <Play className="w-6 h-6 fill-black ml-0.5" />
+                  </button>
+                  {downloads.some((t) => !offlineIds.has(t.id)) && (
+                    <button
+                      disabled={Object.keys(downloadProgress).length > 0}
+                      onClick={async () => {
+                        for (const t of downloads.filter((x) => !offlineIds.has(x.id))) {
+                          await downloadTrack(t);
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-60 text-white px-4 py-2 rounded-full text-xs font-semibold border border-neutral-800 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      {Object.keys(downloadProgress).length > 0 ? "Downloading…" : "Download all to this device"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
+                {downloads.length === 0 ? (
+                  <div className="py-20 text-center text-neutral-500">
+                    <Download className="w-20 h-20 mx-auto mb-4 opacity-40 text-neutral-400" />
+                    <p className="text-lg font-bold text-white">Songs you download will appear here</p>
+                    <p className="text-xs text-neutral-400 mt-1.5">
+                      Use the ⋮ menu on any song and choose Download. Sign in to see them on all your devices.
+                    </p>
+                  </div>
+                ) : (
+                  downloads.map((track, i) => (
+                    <TrackRow key={track.id} track={track} index={i} queue={downloads} />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ===================== YOUR LIBRARY VIEW ===================== */}
           {currentView === "library" && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -1816,6 +1892,20 @@ export default function Home() {
                     {mounted ? likedSongIds.size : 0} songs
                   </p>
                 </div>
+
+                {/* Downloads Card */}
+                {DOWNLOADS_ENABLED && (
+                <div
+                  onClick={() => setCurrentView("downloads")}
+                  className="group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm hover:shadow-xl hover:scale-105"
+                >
+                  <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 bg-gradient-to-br from-emerald-700 to-teal-400 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
+                    <Download className="w-16 h-16 text-white shadow-xl" />
+                  </div>
+                  <h3 className="font-semibold text-white text-base truncate mb-1">Downloads</h3>
+                  <p className="text-xs text-neutral-400 truncate">{mounted ? downloads.length : 0} songs</p>
+                </div>
+                )}
 
                 {/* Custom Playlists */}
                 {mounted && playlists.map((pl) => (

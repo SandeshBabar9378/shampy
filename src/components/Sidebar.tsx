@@ -2,9 +2,10 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, Search, Library, Plus, Heart, Music2, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Home, Search, Library, Plus, Heart, Music2, ChevronLeft, ChevronRight, Settings, Download } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { PlaylistCollage } from "./PlaylistCollage";
+import { DOWNLOADS_ENABLED } from "@/lib/features";
 
 interface SidebarProps {
   currentView: string;
@@ -29,8 +30,9 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
     { id: "home", label: "Home", icon: Home },
     { id: "search", label: "Search", icon: Search },
     { id: "liked", label: "Liked songs", icon: Heart },
+    { id: "downloads", label: "Downloads", icon: Download },
     { id: "library", label: "Your library", icon: Library },
-  ];
+  ].filter((item) => item.id !== "downloads" || DOWNLOADS_ENABLED);
 
   const renderNavItem = ({ id, label, icon: Icon }: (typeof navItems)[number]) => {
     const active = currentView === id;

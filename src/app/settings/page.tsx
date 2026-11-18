@@ -5,6 +5,7 @@ import { ChevronLeft, Check, Sparkles, Palette } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePlayer, type ThemeId } from "@/context/PlayerContext";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
+import { AccountSection } from "@/components/AccountSection";
 
 const THEMES: { id: ThemeId; name: string; description: string; swatch: string }[] = [
   {
@@ -134,9 +135,11 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">Your Profile</h2>
-              <p className="text-xs text-neutral-400 mt-0.5">Zero-login device identity</p>
+              <p className="text-xs text-neutral-400 mt-0.5">{user?.email ? "Synced account" : "Guest on this device"}</p>
             </div>
           </div>
+
+          <AccountSection />
 
           <form onSubmit={handleSave} className="space-y-6">
             {/* Avatar Selector */}
@@ -178,16 +181,17 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Device ID information */}
-            <div className="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800 text-xs">
-              <p className="text-neutral-500 font-mono">
-                Device ID:{" "}
-                <span className="text-neutral-300 font-semibold">{user?.id || "Not available"}</span>
-              </p>
-              <p className="text-[11px] text-neutral-500 mt-1">
-                Your playlists, likes, and settings are automatically synced to this ID without passwords.
-              </p>
-            </div>
+            {!user?.email && (
+              <div className="p-3 bg-neutral-950/60 rounded-lg border border-neutral-800 text-xs">
+                <p className="text-neutral-500 font-mono">
+                  Device ID:{" "}
+                  <span className="text-neutral-300 font-semibold">{user?.id || "Not available"}</span>
+                </p>
+                <p className="text-[11px] text-neutral-500 mt-1">
+                  As a guest, your library is tied to this device only.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

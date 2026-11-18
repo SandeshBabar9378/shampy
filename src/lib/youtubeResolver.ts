@@ -1,12 +1,11 @@
-import { getDb } from "./db";
+import { query, queryOne } from "./db";
 
 export async function resolveYouTubeVideoId(title: string, artist: string): Promise<string | null> {
-  const query = `${title} ${artist} audio`.trim();
-  const db = getDb();
+  const cacheKey = `${title} ${artist} audio`.trim();
 
   // 1. Check local cache first
   try {
-    const cached = db.prepare("SELECT youtube_id FROM yt_cache WHERE query = ?").get(query) as { youtube_id: string } | undefined;
+    const cached = await queryOne<{ youtube_id: string }>("SELECT youtube_id FROM yt_cache WHERE query = $1", [cacheKey]);
     if (cached && cached.youtube_id) {
       return cached.youtube_id;
     }
@@ -16,7 +15,7 @@ export async function resolveYouTubeVideoId(title: string, artist: string): Prom
 
   // 2. Fetch from YouTube Search
   try {
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cacheKey)}`;
     const response = await fetch(searchUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -56,9 +55,11 @@ export async function resolveYouTubeVideoId(title: string, artist: string): Prom
     if (selectedId) {
       // Save in cache
       try {
-        db.prepare(
-          "INSERT OR REPLACE INTO yt_cache (query, youtube_id, title, duration) VALUES (?, ?, ?, ?)"
-        ).run(query, selectedId, `${title} - ${artist}`, 0);
+        await query(
+          `INSERT INTO yt_cache (query, youtube_id, title, duration) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (query) DO UPDATE SET youtube_id = EXCLUDED.youtube_id, title = EXCLUDED.title, duration = EXCLUDED.duration`,
+          [cacheKey, selectedId, `${title} - ${artist}`, 0]
+        );
       } catch (cacheErr) {
         console.error("Cache write error:", cacheErr);
       }

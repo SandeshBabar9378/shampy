@@ -32,6 +32,8 @@ import {
   type SleepTimerOption,
 } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
+import { useDownload } from "@/hooks/useDownload";
+import { DOWNLOADS_ENABLED } from "@/lib/features";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 import { parseLRC, type LyricLine } from "@/lib/lyrics";
 import { hasNonLatinLetters } from "@/lib/transcript";
@@ -175,6 +177,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const cover = getTrackArtworkUrl(currentTrack, "max");
   const dominantColor = useDominantColor(cover);
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
+  const download = useDownload(currentTrack);
   const effectiveTime = isSeeking ? seekVal : currentTime;
   const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (effectiveTime / duration) * 100)) : 0;
 
@@ -1341,12 +1344,22 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
               className="shubhu-mp-menuItem"
               onClick={() => {
                 setShowMenu(false);
-                showToast("Download is coming soon");
+                if (!DOWNLOADS_ENABLED) {
+                  showToast("Download is coming soon");
+                  return;
+                }
+                if (!currentTrack) return;
+                if (download.busy) {
+                  showToast(download.label);
+                  return;
+                }
+                if (!download.offline) showToast("Downloading…");
+                void download.toggle().then((message) => message && showToast(message));
               }}
               role="menuitem"
             >
               <Download className="shubhu-mp-menuIcon" />
-              <span>Download</span>
+              <span>{download.offline ? "Remove download" : download.inList ? "Download to this device" : "Download"}</span>
             </button>
             <button
               className="shubhu-mp-menuItem"

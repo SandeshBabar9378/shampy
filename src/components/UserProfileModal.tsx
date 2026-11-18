@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { X, Check, Sparkles } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
+import { AccountSection } from "@/components/AccountSection";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -45,8 +46,12 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">Your Profile</h2>
-            <p className="text-xs text-neutral-400">Zero-login device identity</p>
+            <p className="text-xs text-neutral-400">{user?.email ? "Synced account" : "Guest on this device"}</p>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <AccountSection />
         </div>
 
         <form onSubmit={handleSave} className="space-y-6">
@@ -86,15 +91,16 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
             />
           </div>
 
-          {/* Device ID information */}
-          <div className="p-3 bg-neutral-950/60 rounded-lg border border-neutral-850 text-xs">
-            <p className="text-neutral-500 font-mono">
-              Device ID: <span className="text-neutral-300 font-semibold">{user?.id}</span>
-            </p>
-            <p className="text-[11px] text-neutral-500 mt-1">
-              Your playlists, likes, and settings are automatically synced to this ID without passwords.
-            </p>
-          </div>
+          {!user?.email && (
+            <div className="p-3 bg-neutral-950/60 rounded-lg border border-neutral-850 text-xs">
+              <p className="text-neutral-500 font-mono">
+                Device ID: <span className="text-neutral-300 font-semibold">{user?.id}</span>
+              </p>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                As a guest, your library is tied to this device only.
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button
