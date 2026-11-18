@@ -44,6 +44,28 @@ const CAROUSEL_ROTATE_Y = [0, 53, 58, 63];
 // Horizontal distance from the exact center as a fraction of the container width.
 const CAROUSEL_X_FRACTION = [0, 0.23, 0.37, 0.45];
 
+// Mobile coverflow: the centered cover dominates, side covers peek in at the
+// edges with a stronger depth falloff. Kept separate so desktop is untouched.
+// Values mirror the approved mockup: ~44% viewport-wide center card with the
+// neighbours tilted behind it and only a sliver of each one peeking through.
+const CAROUSEL_MOBILE_SCALE = [1, 0.78, 0.64, 0.54];
+const CAROUSEL_MOBILE_DIM = [0, 0.2, 0.34, 0.48];
+const CAROUSEL_MOBILE_ROTATE_Y = [0, 50, 58, 64];
+const CAROUSEL_MOBILE_X_FRACTION = [0, 0.34, 0.5, 0.62];
+const CAROUSEL_MOBILE_CENTER_FRACTION = 0.46;
+// How long auto-rotation stays paused after the finger leaves the screen.
+const CAROUSEL_RESUME_DELAY_MS = 1600;
+
+/** Linear sample of a per-distance curve so fractional drag positions stay smooth. */
+function sampleCarouselCurve(values: number[], distance: number): number {
+  if (distance <= 0) return values[0];
+  const clamped = Math.min(distance, values.length - 1);
+  const index = Math.floor(clamped);
+  const next = Math.min(index + 1, values.length - 1);
+  const t = clamped - index;
+  return values[index] + (values[next] - values[index]) * t;
+}
+
 const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
   Hindi: [
     "Bollywood Butter",
@@ -72,7 +94,7 @@ const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
 export default function Home() {
   const router = useRouter();
   const { currentView, setCurrentView, searchQuery, setSearchQuery, openCreatePlaylist } = useAppShell();
-  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, queue, setAppQueue, deletePlaylist } = usePlayer();
+  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, toggleLike, queue, setAppQueue, deletePlaylist } = usePlayer();
 
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [searchArtists, setSearchArtists] = useState<{ name: string; image: string; browseId: string }[]>([]);
@@ -510,6 +532,33 @@ export default function Home() {
   const [carouselResetKey, setCarouselResetKey] = useState(0);
   const restartCarouselTimer = () => setCarouselResetKey((key) => key + 1);
 
+  // Mobile-only gesture state. `carouselIndex` doubles as a fractional position
+  // while a finger is down, then snaps to the nearest whole album on release.
+  const [isMobileCarousel, setIsMobileCarousel] = useState(false);
+  const [carouselDragging, setCarouselDragging] = useState(false);
+  // Explicit pause: rotation stops the moment a finger lands and only resumes
+  // after a short idle window following release. One timer, always cleared first.
+  const [carouselManuallyPaused, setCarouselManuallyPaused] = useState(false);
+  const carouselResumeTimerRef = useRef<number | null>(null);
+  const stopCarouselResumeTimer = () => {
+    if (carouselResumeTimerRef.current !== null) {
+      window.clearTimeout(carouselResumeTimerRef.current);
+      carouselResumeTimerRef.current = null;
+    }
+  };
+  const carouselDragRef = useRef({
+    pointerId: null as number | null,
+    startX: 0,
+    startY: 0,
+    startIndex: 0,
+    lastDx: 0,
+    lastX: 0,
+    lastTime: 0,
+    velocity: 0,
+    horizontal: null as boolean | null,
+  });
+  const carouselSuppressClickRef = useRef(false);
+
   // Measured carousel area, used to size/position the covers in pixels.
   const carouselAreaRef = useRef<HTMLDivElement | null>(null);
   const [carouselBox, setCarouselBox] = useState({ width: 0, height: 0 });
@@ -544,24 +593,149 @@ export default function Home() {
   const carouselCount = Math.min(9, displayHomeTracks.length);
 
   useEffect(() => {
-    if (prefersReducedMotion || !carouselTabVisible || carouselHovered || carouselCount <= 1) return;
+    if (
+      prefersReducedMotion ||
+      !carouselTabVisible ||
+      carouselHovered ||
+      carouselManuallyPaused ||
+      carouselCount <= 1
+    ) {
+      return;
+    }
     const id = window.setInterval(() => {
       setCarouselIndex((prev) => (prev + 1) % carouselCount);
     }, 4000);
     return () => window.clearInterval(id);
-  }, [prefersReducedMotion, carouselTabVisible, carouselHovered, carouselCount, carouselIndex, carouselResetKey]);
+  }, [
+    prefersReducedMotion,
+    carouselTabVisible,
+    carouselHovered,
+    carouselManuallyPaused,
+    carouselCount,
+    carouselIndex,
+    carouselResetKey,
+  ]);
+
+  // The resume timer is a single instance; clear it when the carousel unmounts.
+  useEffect(() => {
+    return () => {
+      if (carouselResumeTimerRef.current !== null) {
+        window.clearTimeout(carouselResumeTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Mobile carousel gestures are enabled only below the sm breakpoint.
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileCarousel(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  // Pixel distance the covers travel per album step.
+  const carouselStepPx = Math.max(
+    1,
+    (carouselBox.width || 360) *
+      (isMobileCarousel ? CAROUSEL_MOBILE_X_FRACTION[1] : CAROUSEL_X_FRACTION[1])
+  );
+
+  const scheduleCarouselResume = () => {
+    stopCarouselResumeTimer();
+    carouselResumeTimerRef.current = window.setTimeout(() => {
+      carouselResumeTimerRef.current = null;
+      restartCarouselTimer();
+      setCarouselManuallyPaused(false);
+    }, CAROUSEL_RESUME_DELAY_MS);
+  };
+
+  const handleCarouselPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isMobileCarousel || carouselCount <= 1) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    stopCarouselResumeTimer();
+    const now = performance.now();
+    carouselDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startIndex: carouselIndex,
+      lastDx: 0,
+      lastX: event.clientX,
+      lastTime: now,
+      velocity: 0,
+      horizontal: null,
+    };
+    carouselSuppressClickRef.current = false;
+    // Stop auto-rotation the instant the finger lands. It can only come back
+    // after a quiet idle period once the finger has left the screen.
+    setCarouselManuallyPaused(true);
+    setCarouselDragging(true);
+  };
+
+  const handleCarouselPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = carouselDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (drag.horizontal === null) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      drag.horizontal = Math.abs(dx) > Math.abs(dy) * 1.15;
+      if (!drag.horizontal) return;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+    if (!drag.horizontal) return;
+    event.preventDefault();
+    const now = performance.now();
+    const dt = now - drag.lastTime;
+    if (dt > 0) {
+      const sample = (event.clientX - drag.lastX) / dt;
+      drag.velocity = drag.velocity * 0.35 + sample * 0.65;
+      drag.lastX = event.clientX;
+      drag.lastTime = now;
+    }
+    drag.lastDx = dx;
+    if (Math.abs(dx) > 6) carouselSuppressClickRef.current = true;
+    // Direct finger tracking: a single gesture can pass through any number of
+    // albums instead of being capped at one card per swipe.
+    const raw = drag.startIndex - dx / carouselStepPx;
+    setCarouselIndex(((raw % carouselCount) + carouselCount) % carouselCount);
+  };
+
+  const handleCarouselPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = carouselDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+    const wasHorizontal = drag.horizontal;
+    if (wasHorizontal) {
+      // Momentum: a fast flick can travel through several albums at once.
+      // Ignore a stale velocity if the finger paused before lifting.
+      const idleMs = performance.now() - drag.lastTime;
+      const velocity = idleMs < 90 ? drag.velocity : 0;
+      const maxMomentum = carouselStepPx * 2.5;
+      const momentum = Math.max(-maxMomentum, Math.min(maxMomentum, velocity * 180));
+      const rawTarget = drag.startIndex - (drag.lastDx + momentum) / carouselStepPx;
+      const target = Math.round(rawTarget);
+      setCarouselIndex(((target % carouselCount) + carouselCount) % carouselCount);
+    }
+    drag.pointerId = null;
+    drag.horizontal = null;
+    drag.velocity = 0;
+    setCarouselDragging(false);
+    // Always start the idle window, even for a tap that never became a swipe.
+    scheduleCarouselResume();
+  };
 
   return (
     <>
       {/* Scrollable Viewport */}
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           {/* ===================== HOME VIEW ===================== */}
           {currentView === "home" && (
-            <div className="space-y-8 animate-in fade-in duration-200">
+            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
               {/* Header Greeting */}
               <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h1 className="font-display text-3xl sm:text-5xl font-bold tracking-tight text-white">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <h1 className="font-display text-2xl sm:text-5xl font-bold tracking-tight text-white">
                     {greeting}
                   </h1>
                 </div>
@@ -571,12 +745,23 @@ export default function Home() {
                   const carouselTracks = displayHomeTracks.slice(0, 9);
                   const total = carouselTracks.length;
                   const activeIdx = ((carouselIndex % total) + total) % total;
-                  // Center cover: area height minus ~48px, capped at 30% of the container width.
+                  // Fractional during a mobile drag, whole numbers otherwise.
+                  const position = carouselIndex;
+                  // Center cover: on mobile it stays near half the screen width so
+                  // both neighbours can peek in; desktop keeps its original sizing.
                   const centerSize =
                     carouselBox.width > 0 && carouselBox.height > 0
-                      ? Math.min(carouselBox.height - 48, carouselBox.width * 0.3)
+                      ? isMobileCarousel
+                        ? Math.min(carouselBox.height * 0.86, carouselBox.width * CAROUSEL_MOBILE_CENTER_FRACTION)
+                        : Math.min(carouselBox.height - 48, carouselBox.width * 0.3)
                       : 220;
                   const containerWidth = carouselBox.width || 900;
+                  const curveScale = isMobileCarousel ? CAROUSEL_MOBILE_SCALE : CAROUSEL_SCALE;
+                  const curveDim = isMobileCarousel ? CAROUSEL_MOBILE_DIM : CAROUSEL_DIM;
+                  const curveRotate = isMobileCarousel ? CAROUSEL_MOBILE_ROTATE_Y : CAROUSEL_ROTATE_Y;
+                  const curveX = isMobileCarousel ? CAROUSEL_MOBILE_X_FRACTION : CAROUSEL_X_FRACTION;
+                  const depthZ = isMobileCarousel ? 44 : 60;
+                  const cardRadius = isMobileCarousel ? 22 : 28;
                   // At most 7 ambient layers: the visible tracks within +/-3 of the center.
                   const ambientLayers = carouselTracks
                     .map((track, idx) => {
@@ -597,17 +782,25 @@ export default function Home() {
                       : Math.round((activeIdx / Math.max(1, total - 1)) * (dotCount - 1));
                   const transitionTiming = prefersReducedMotion
                     ? "none"
-                    : "transform 800ms cubic-bezier(0.22, 1, 0.36, 1), opacity 800ms cubic-bezier(0.22, 1, 0.36, 1)";
+                    : carouselDragging
+                    ? "none"
+                    : `transform ${isMobileCarousel ? 620 : 800}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${
+                        isMobileCarousel ? 620 : 800
+                      }ms cubic-bezier(0.22, 1, 0.36, 1)`;
 
                   return (
                     <div
-                      className="mb-8 relative overflow-hidden rounded-[28px] border border-white/[0.06] shadow-2xl theme-dark-surface"
+                      className="mb-4 sm:mb-8 relative overflow-hidden rounded-[28px] border border-white/[0.06] shadow-2xl theme-dark-surface"
                       style={{
                         background:
                           "radial-gradient(120% 130% at 50% 115%, var(--carousel-glow) 0%, var(--carousel-base) 55%, var(--carousel-base) 100%)",
                       }}
-                      onMouseEnter={() => setCarouselHovered(true)}
-                      onMouseLeave={() => setCarouselHovered(false)}
+                      onMouseEnter={() => {
+                        if (!isMobileCarousel) setCarouselHovered(true);
+                      }}
+                      onMouseLeave={() => {
+                        if (!isMobileCarousel) setCarouselHovered(false);
+                      }}
                     >
                       {/* Ambient color layers: one per visible song (max 7), blurred cover art */}
                       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
@@ -642,11 +835,11 @@ export default function Home() {
                       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[46%] h-[62%] rounded-full bg-white/[0.05] blur-3xl pointer-events-none" />
 
                       {/* Header */}
-                      <div className="relative z-10 px-5 pt-5 sm:px-6 sm:pt-6">
-                        <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                      <div className="relative z-10 px-4 pt-4 sm:px-6 sm:pt-6">
+                        <h2 className="font-serif text-xl sm:text-3xl font-bold text-white tracking-tight">
                           Top songs right now
                         </h2>
-                        <p className="text-xs text-neutral-400 mt-1">
+                        <p className="text-[11px] sm:text-xs text-neutral-400 mt-1">
                           Curated daily based on real-time stream velocity
                         </p>
                       </div>
@@ -666,6 +859,11 @@ export default function Home() {
                             setCarouselIndex((prev) => (prev + 1) % total);
                           }
                         }}
+                        onPointerDown={handleCarouselPointerDown}
+                        onPointerMove={handleCarouselPointerMove}
+                        onPointerUp={handleCarouselPointerEnd}
+                        onPointerCancel={handleCarouselPointerEnd}
+                        style={isMobileCarousel ? { touchAction: "pan-y" } : undefined}
                         className="shubhu-carousel-stage relative z-10 mt-3 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-emerald-400/30"
                       >
                         {/* Faint ground reflection / shadow under the row */}
@@ -678,32 +876,33 @@ export default function Home() {
                           {/* 3D stage — must NOT have overflow hidden */}
                           <div className="absolute inset-0" style={{ transformStyle: "preserve-3d" }}>
                             {carouselTracks.map((track, idx) => {
-                              const rawOffset = idx - activeIdx;
-                              const offset =
-                                rawOffset > total / 2
-                                  ? rawOffset - total
-                                  : rawOffset < -total / 2
-                                  ? rawOffset + total
-                                  : rawOffset;
+                              const rawOffset = idx - position;
+                              let offset = rawOffset;
+                              while (offset > total / 2) offset -= total;
+                              while (offset < -total / 2) offset += total;
                               const distance = Math.abs(offset);
-                              const level = Math.min(3, distance);
-                              const isCenter = offset === 0;
+                              // Nearest cover owns the title/play overlay, even mid-drag.
+                              const isCenter = distance < 0.5;
                               const isHidden = distance > 3;
-                              const scale = CAROUSEL_SCALE[level];
+                              const scale = sampleCarouselCurve(curveScale, distance);
                               // Left covers tilt with a positive angle, right covers negative.
-                              const rotateY = -Math.sign(offset) * CAROUSEL_ROTATE_Y[level];
+                              const rotateY = -Math.sign(offset) * sampleCarouselCurve(curveRotate, distance);
                               const translateX =
-                                Math.sign(offset) * CAROUSEL_X_FRACTION[level] * containerWidth;
+                                Math.sign(offset) * sampleCarouselCurve(curveX, distance) * containerWidth;
 
                               return (
                                 <div
                                   key={track.id}
                                   onClick={() => {
+                                    if (carouselSuppressClickRef.current) {
+                                      carouselSuppressClickRef.current = false;
+                                      return;
+                                    }
                                     restartCarouselTimer();
                                     if (isCenter) {
                                       playTrack(track, carouselTracks);
                                     } else {
-                                      setCarouselIndex(idx);
+                                      setCarouselIndex(((idx % total) + total) % total);
                                     }
                                   }}
                                   className={`absolute left-1/2 top-1/2 select-none ${
@@ -712,12 +911,12 @@ export default function Home() {
                                   style={{
                                     width: centerSize,
                                     height: centerSize,
-                                    borderRadius: 28,
+                                    borderRadius: cardRadius,
                                     transform: `translate(-50%, -50%) translateX(${translateX}px) translateZ(${
-                                      -distance * 60
+                                      -distance * depthZ
                                     }px) rotateY(${rotateY}deg) scale(${scale})`,
                                     opacity: isHidden ? 0 : 1,
-                                    zIndex: 30 - distance,
+                                    zIndex: 30 - Math.round(distance),
                                     willChange: "transform",
                                     transition: transitionTiming,
                                   }}
@@ -728,7 +927,7 @@ export default function Home() {
                                         ? "border-emerald-500/40 shadow-[0_32px_64px_rgba(0,0,0,0.6)]"
                                         : "border-white/10 shadow-[0_24px_48px_rgba(0,0,0,0.45)]"
                                     }`}
-                                    style={{ borderRadius: 28 }}
+                                    style={{ borderRadius: cardRadius }}
                                   >
                                     <img
                                       src={getTrackArtworkUrl(track, "max")}
@@ -745,19 +944,21 @@ export default function Home() {
                                     <div
                                       className="absolute inset-0 pointer-events-none bg-black"
                                       style={{
-                                        opacity: CAROUSEL_DIM[level],
+                                        opacity: sampleCarouselCurve(curveDim, distance),
                                         transition: prefersReducedMotion
                                           ? "none"
-                                          : "opacity 800ms cubic-bezier(0.22, 1, 0.36, 1)",
+                                          : `opacity ${isMobileCarousel ? 620 : 800}ms cubic-bezier(0.22, 1, 0.36, 1)`,
                                       }}
                                     />
 
-                                    {/* Center cover only: gradient, real title/artist, green play */}
+                                    {/* Center cover actions. Mobile follows the approved
+                                        mockup: centred white play disc + top-right heart.
+                                        Desktop keeps its original title + green play button. */}
                                     {isCenter && (
                                       <>
-                                        <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-                                        <div className="absolute inset-x-0 bottom-0 z-10 p-5 pr-[84px]">
-                                          <h3 className="font-serif font-bold text-white text-[22px] sm:text-[26px] leading-tight truncate">
+                                        <div className="hidden sm:block absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                                        <div className="hidden sm:block absolute inset-x-0 bottom-0 z-10 p-5 pr-[84px]">
+                                          <h3 className="font-serif font-bold text-white text-[22px] leading-tight truncate">
                                             {track.title}
                                           </h3>
                                           <p className="text-[14px] text-white/80 truncate mt-1">
@@ -767,13 +968,31 @@ export default function Home() {
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            if (carouselSuppressClickRef.current) {
+                                              carouselSuppressClickRef.current = false;
+                                              return;
+                                            }
                                             restartCarouselTimer();
                                             playTrack(track, carouselTracks);
                                           }}
-                                          className="absolute bottom-[18px] right-[18px] z-20 w-[52px] h-[52px] rounded-full bg-emerald-500 hover:bg-[var(--theme-accent-strong)] text-black flex items-center justify-center shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                                          className="absolute z-20 flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-105 active:scale-95 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white/20 border border-white/70 text-white backdrop-blur-sm sm:left-auto sm:top-auto sm:bottom-[18px] sm:right-[18px] sm:translate-x-0 sm:translate-y-0 sm:w-[52px] sm:h-[52px] sm:bg-emerald-500 sm:border-0 sm:text-black sm:shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:bg-[var(--theme-accent-strong)]"
                                           title="Play"
                                         >
-                                          <Play className="w-5 h-5 fill-black ml-0.5" />
+                                          <Play className="w-6 h-6 sm:w-5 sm:h-5 fill-white sm:fill-black ml-0.5" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (carouselSuppressClickRef.current) {
+                                              carouselSuppressClickRef.current = false;
+                                              return;
+                                            }
+                                            void toggleLike(track);
+                                          }}
+                                          className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white bg-black/20 backdrop-blur-sm cursor-pointer sm:hidden"
+                                          title="Save to Liked Songs"
+                                        >
+                                          <Heart className={`w-6 h-6 ${likedSongIds.has(track.id) ? "fill-white" : ""}`} />
                                         </button>
                                       </>
                                     )}
@@ -785,20 +1004,21 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Controls: prev, dots, next — one centered compact row */}
-                      <div className="relative z-10 flex items-center justify-center gap-3 px-5 pt-4 pb-5 sm:px-6">
+                      {/* Controls: hidden on mobile (swipe/auto-rotate handles navigation there),
+                          desktop keeps the original compact centered cluster. */}
+                      <div className="relative z-10 hidden sm:flex items-center justify-between gap-2 px-4 pt-3 pb-4 sm:justify-center sm:gap-3 sm:px-6 sm:pt-4 sm:pb-5">
                         <button
                           onClick={() => {
                             restartCarouselTimer();
                             setCarouselIndex((prev) => (prev - 1 + total) % total);
                           }}
-                          className="w-9 h-9 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors"
+                          className="w-11 h-11 shrink-0 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors sm:w-9 sm:h-9"
                           title="Previous song"
                         >
                           <ChevronLeft className="w-4 h-4" />
                         </button>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-1 items-center justify-center gap-1.5 sm:flex-none">
                           {Array.from({ length: dotCount }).map((_, i) => {
                             const isActive = i === activeDot;
                             return (
@@ -828,7 +1048,7 @@ export default function Home() {
                             restartCarouselTimer();
                             setCarouselIndex((prev) => (prev + 1) % total);
                           }}
-                          className="w-9 h-9 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors"
+                          className="w-11 h-11 shrink-0 rounded-full bg-black/40 border border-white/10 text-white flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors sm:w-9 sm:h-9"
                           title="Next song"
                         >
                           <ChevronRight className="w-4 h-4" />
@@ -843,7 +1063,7 @@ export default function Home() {
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h2 className="font-display text-xl font-bold text-white">Popular songs</h2>
+                        <h2 className="font-display text-lg sm:text-xl font-bold text-white">Popular songs</h2>
                         <p className="text-xs text-neutral-400 mt-0.5">Top trending songs right now</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -877,7 +1097,7 @@ export default function Home() {
                         <div
                           key={`pop-${track.id}`}
                           onClick={() => playTrack(track, displayPopularTracks)}
-                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+                          className="shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
@@ -910,19 +1130,19 @@ export default function Home() {
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                        <h2 className="font-display text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                           <Sparkles className="w-5 h-5 text-emerald-400" />
                           Your Most Played
                         </h2>
                         <p className="text-xs text-neutral-400">Most replayed tracks by you</p>
                       </div>
                     </div>
-                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                    <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                       {displayMostPlayed.map((track, idx) => (
                         <div
                           key={`most-played-${track.id}-${idx}`}
                           onClick={() => playTrack(track, displayMostPlayed)}
-                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+                          className="shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
@@ -959,7 +1179,7 @@ export default function Home() {
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-5 h-5 text-emerald-400" />
-                        <h2 className="text-xl font-bold text-white">
+                        <h2 className="text-lg sm:text-xl font-bold text-white">
                           {hasListeningHistory ? "Made for you 🎵" : "Featured Picks ✨"}
                         </h2>
                       </div>
@@ -969,12 +1189,12 @@ export default function Home() {
                         </span>
                       )}
                     </div>
-                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                    <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                       {madeForYouTracks.map((track) => (
                         <div
                           key={track.id}
                           onClick={() => playTrack(track, madeForYouTracks)}
-                          className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+                          className="shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
@@ -1040,11 +1260,11 @@ export default function Home() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Compass className="w-5 h-5 text-emerald-400" />
-                      <h2 className="text-xl font-bold text-white">Featured Playlists</h2>
+                      <h2 className="text-lg sm:text-xl font-bold text-white">Featured Playlists</h2>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                     {prioritizedPlaylists.map((pl) => (
                       <PlaylistCard
                         key={pl.id}
@@ -1063,19 +1283,19 @@ export default function Home() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Music className="w-5 h-5 text-emerald-400" />
-                      <h2 className="text-xl font-bold text-white">
+                      <h2 className="text-lg sm:text-xl font-bold text-white">
                         Community Playlists
                       </h2>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {displayPlaylists.map((pl) => (
                       <div
                         key={pl.browseId}
                         onClick={() => router.push(`/playlist/${pl.browseId.replace(/^VL/, "")}`)}
                         title={pl.title}
-                        className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 flex flex-col"
+                        className="shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 flex flex-col"
                       >
                         <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                           <img
@@ -1116,7 +1336,7 @@ export default function Home() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Flame className="w-5 h-5 text-emerald-400" />
-                      <h2 className="text-xl font-bold text-white">
+                      <h2 className="text-lg sm:text-xl font-bold text-white">
                         Trending Chartbusters
                       </h2>
                     </div>
@@ -1144,7 +1364,7 @@ export default function Home() {
                 <div>
                   <div className="flex items-center gap-2 mb-4">
                     <Sparkles className="w-5 h-5 text-emerald-400" />
-                    <h2 className="text-xl font-bold text-white">Recommended For You</h2>
+                    <h2 className="text-lg sm:text-xl font-bold text-white">Recommended For You</h2>
                   </div>
 
                   <div className="bg-neutral-950/40 rounded-xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
@@ -1291,13 +1511,13 @@ export default function Home() {
                     {searchPlaylists.length > 0 && (
                       <div>
                         <h3 className="text-lg font-bold text-white mb-4">Playlists</h3>
-                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {searchPlaylists.map((playlist) => (
                             <div
                               key={playlist.browseId}
                               onClick={() => router.push(`/playlist/${playlist.browseId.replace(/^VL/, "")}`)}
                               title={playlist.title}
-                              className="shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
+                              className="shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl cursor-pointer group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5"
                             >
                               <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                                 <img
@@ -1332,7 +1552,7 @@ export default function Home() {
                     {matchingArtists.length > 0 && (
                       <div>
                         <h3 className="text-lg font-bold text-white mb-4">Artists</h3>
-                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {matchingArtists.map((artist, idx) => (
                             <div
                               key={idx}
@@ -1341,7 +1561,7 @@ export default function Home() {
                                   router.push(`/artist/${artist.browseId}`);
                                 }
                               }}
-                              className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 text-center border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${artist.browseId ? "cursor-pointer" : "cursor-default"}`}
+                              className={`shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 text-center border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${artist.browseId ? "cursor-pointer" : "cursor-default"}`}
                               title={artist.name}
                             >
                               <img
@@ -1368,7 +1588,7 @@ export default function Home() {
                     {matchingAlbums.length > 0 && (
                       <div>
                         <h3 className="text-lg font-bold text-white mb-4">Albums</h3>
-                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                           {matchingAlbums.map((album, idx) => (
                             <div
                               key={idx}
@@ -1377,7 +1597,7 @@ export default function Home() {
                                   router.push(`/album/${album.browseId}`);
                                 }
                               }}
-                              className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${album.browseId ? "cursor-pointer" : "cursor-default"}`}
+                              className={`shrink-0 w-[142px] sm:w-40 p-2.5 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${album.browseId ? "cursor-pointer" : "cursor-default"}`}
                               title={album.title}
                             >
                               <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
@@ -1440,7 +1660,7 @@ export default function Home() {
                     <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-4">
                       Browse by Mood
                     </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                       {[
                         { name: "Chill", query: "chill lofi hits", color: "from-blue-700 to-indigo-900" },
                         { name: "Romantic", query: "romantic hindi songs", color: "from-rose-700 to-pink-900" },
@@ -1454,12 +1674,12 @@ export default function Home() {
                         <button
                           key={mood.name}
                           onClick={() => setSearchQuery(mood.query)}
-                          className={`theme-dark-surface p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
+                          className={`theme-dark-surface p-4 sm:p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
                         >
-                          <span className="font-display font-bold text-lg text-white block">
+                          <span className="font-display font-bold text-base sm:text-lg text-white block">
                             {mood.name}
                           </span>
-                          <span className="text-xs text-white/70 block mt-1">Tap to explore</span>
+                          <span className="text-[11px] sm:text-xs text-white/70 block mt-1">Tap to explore</span>
                         </button>
                       ))}
                     </div>
@@ -1467,7 +1687,7 @@ export default function Home() {
 
                   <div>
                     <h2 className="font-display text-xl font-bold text-white mb-4">Browse All Categories</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                       {FEATURED_PLAYLISTS.map((pl, i) => {
                         const colors = [
                           "from-purple-600 to-indigo-900",
@@ -1481,9 +1701,9 @@ export default function Home() {
                           <div
                             key={pl.id}
                             onClick={() => router.push(`/playlist/${pl.playlistId}`)}
-                            className={`theme-dark-surface aspect-square p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
+                            className={`theme-dark-surface aspect-square p-3 sm:p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
                           >
-                            <span className="font-bold text-lg text-white leading-tight">
+                            <span className="font-bold text-[13px] sm:text-lg text-white leading-snug break-words">
                               {pl.name}
                             </span>
                             <img
@@ -1494,7 +1714,7 @@ export default function Home() {
                               onError={(e) => {
                                 e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
-                              className="w-16 h-16 rounded-md object-cover absolute -bottom-2 -right-2 shadow-2xl rotate-15 group-hover:rotate-0 group-hover:scale-110 transition-all duration-300"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-md object-cover absolute -bottom-2 -right-2 shadow-2xl rotate-15 group-hover:rotate-0 group-hover:scale-110 transition-all duration-300"
                             />
                           </div>
                         );
@@ -1639,7 +1859,7 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {followedArtists.map((artist) => (
                       <Link
                         key={artist.browseId}

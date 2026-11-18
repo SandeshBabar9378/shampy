@@ -104,6 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onSearchChange={handleSearchChange}
             showSearch={currentView === "search"}
             onOpenProfile={openProfile}
+            onOpenSearch={() => setCurrentView("search")}
           />
 
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

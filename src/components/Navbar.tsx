@@ -9,9 +9,10 @@ interface NavbarProps {
   onSearchChange: (q: string) => void;
   showSearch: boolean;
   onOpenProfile: () => void;
+  onOpenSearch: () => void;
 }
 
-export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile }: NavbarProps) {
+export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile, onOpenSearch }: NavbarProps) {
   const { user } = usePlayer();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -78,9 +79,22 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile 
           </span>
         </button>
 
+        {/* Mobile: a small Search icon in the top-right header opens the same
+            Search view as the bottom navigation item (via setCurrentView). */}
+        {!showSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="sm:hidden w-9 h-9 rounded-full flex items-center justify-center text-white/90 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+            title="Search"
+            aria-label="Search"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+        )}
+
         {/* Mobile: On search page -> show circular search button (submits search).
-            On other pages the right side is intentionally empty; Settings now
-            lives in the bottom navigation. */}
+            Settings lives in the bottom navigation. */}
         {showSearch && (
           <button
             type="button"

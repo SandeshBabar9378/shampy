@@ -237,7 +237,7 @@ export function ArtistView({ id }: { id: string }) {
 
               {/* Popular section */}
               <div>
-                <h2 className="text-xl font-bold text-white mb-4">Popular</h2>
+                <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Popular</h2>
                 <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
                   {tracks.length === 0 ? (
                     <div className="py-16 text-center text-neutral-500">
@@ -255,12 +255,14 @@ export function ArtistView({ id }: { id: string }) {
               {/* Discography section */}
               {hasDiscography && (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-white">Discography</h2>
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2.5 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                    <h2 className="text-lg sm:text-xl font-bold text-white">Discography</h2>
+                    {/* On phones the three tabs share one scrollable row; on desktop
+                        this is the original inline group beside the heading. */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1 sm:mx-0 sm:gap-2 sm:overflow-visible sm:px-0">
                       <button
                         onClick={() => setDiscographyTab("popular")}
-                        className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                        className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors sm:px-3 sm:py-1 sm:text-xs ${
                           discographyTab === "popular"
                             ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                             : "bg-neutral-800 text-neutral-400 hover:text-white"
@@ -271,7 +273,7 @@ export function ArtistView({ id }: { id: string }) {
                       {albums.length > 0 && (
                         <button
                           onClick={() => setDiscographyTab("albums")}
-                          className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                          className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors sm:px-3 sm:py-1 sm:text-xs ${
                             discographyTab === "albums"
                               ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                               : "bg-neutral-800 text-neutral-400 hover:text-white"
@@ -283,7 +285,7 @@ export function ArtistView({ id }: { id: string }) {
                       {singles.length > 0 && (
                         <button
                           onClick={() => setDiscographyTab("singles")}
-                          className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                          className={`shrink-0 whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold rounded-full transition-colors sm:px-3 sm:py-1 sm:text-xs ${
                             discographyTab === "singles"
                               ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                               : "bg-neutral-800 text-neutral-400 hover:text-white"
@@ -295,14 +297,14 @@ export function ArtistView({ id }: { id: string }) {
                     </div>
                   </div>
 
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {displayedReleases.map((release, idx) => (
                       <Link
                         key={`${release.browseId}-${idx}`}
                         href={`/album/${release.browseId}`}
-                        className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
+                        className="shrink-0 w-32 p-2.5 sm:w-36 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
                       >
-                        <div className="w-28 h-28 mx-auto mb-3 rounded-xl overflow-hidden shadow-lg bg-neutral-800 shrink-0">
+                        <div className="w-24 h-24 mx-auto mb-3 rounded-xl overflow-hidden shadow-lg bg-neutral-800 shrink-0 sm:w-28 sm:h-28">
                           {release.thumbnail ? (
                             <img
                               src={release.thumbnail}
@@ -335,17 +337,17 @@ export function ArtistView({ id }: { id: string }) {
               {/* Featuring <artist name> section */}
               {featuredOn.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-bold text-white mb-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4">
                     Featuring {artist.title}
                   </h2>
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {featuredOn.map((playlist, idx) => (
                       <Link
                         key={`${playlist.browseId}-${idx}`}
                         href={`/playlist/${playlist.browseId}`}
-                        className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
+                        className="shrink-0 w-32 p-2.5 sm:w-36 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all border border-neutral-800/40 flex flex-col"
                       >
-                        <div className="w-28 h-28 mx-auto mb-3 rounded-xl overflow-hidden shadow-lg bg-neutral-800 shrink-0">
+                        <div className="w-24 h-24 mx-auto mb-3 rounded-xl overflow-hidden shadow-lg bg-neutral-800 shrink-0 sm:w-28 sm:h-28">
                           {playlist.thumbnail ? (
                             <img
                               src={playlist.thumbnail}
@@ -383,15 +385,15 @@ export function ArtistView({ id }: { id: string }) {
               {/* Fans also like section */}
               {fansAlsoLike.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-bold text-white mb-4">Fans also like</h2>
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Fans also like</h2>
+                  <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {fansAlsoLike.map((similar, idx) => (
                       <Link
                         key={`${similar.browseId}-${idx}`}
                         href={`/artist/${similar.browseId}`}
-                        className="shrink-0 w-36 p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all text-center border border-neutral-800/40 flex flex-col"
+                        className="shrink-0 w-32 p-2.5 sm:w-36 sm:p-3 bg-neutral-900/50 hover:bg-neutral-800/80 rounded-2xl cursor-pointer group transition-all text-center border border-neutral-800/40 flex flex-col"
                       >
-                        <div className="w-24 h-24 mx-auto mb-3 rounded-full overflow-hidden shadow-lg bg-neutral-800 shrink-0">
+                        <div className="w-20 h-20 mx-auto mb-3 rounded-full overflow-hidden shadow-lg bg-neutral-800 shrink-0 sm:w-24 sm:h-24">
                           {similar.thumbnail ? (
                             <img
                               src={similar.thumbnail}

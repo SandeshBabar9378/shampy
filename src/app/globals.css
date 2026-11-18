@@ -553,3 +553,11 @@ input[type="range"]:hover {
   --carousel-h: clamp(300px, calc(100vh - 380px), 520px);
   height: var(--carousel-h);
 }
+
+/* Mobile coverflow keeps the same compact proportion as the approved mockup:
+   the stage just fits the cover plus a small amount of breathing room. */
+@media (max-width: 639px) {
+  .shubhu-carousel-stage {
+    --carousel-h: clamp(200px, 58vw, 270px);
+  }
+}
