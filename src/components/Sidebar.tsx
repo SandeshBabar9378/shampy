@@ -12,12 +12,13 @@ interface SidebarProps {
   onOpenProfile: () => void;
   onOpenCreatePlaylist: () => void;
   onOpenSettings?: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
-export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreatePlaylist, onOpenSettings }: SidebarProps) {
+export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreatePlaylist, onOpenSettings, collapsed, onToggleCollapsed }: SidebarProps) {
   const { user, likedSongIds, playlists, savedPlaylists, setMobileExpanded, currentTrack } = usePlayer();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   React.useEffect(() => {
@@ -63,6 +64,7 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
       <aside
+        data-theme-region="sidebar"
         className={`hidden sm:flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-3 shrink-0 rounded-2xl bg-neutral-950/80 backdrop-blur-xl border border-white/5 shadow-2xl transition-all duration-300 select-none z-20 ${
           collapsed ? "w-16" : "w-64"
         }`}
@@ -90,7 +92,7 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
           )}
 
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={onToggleCollapsed}
             className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -213,8 +215,8 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
             })}
         </div>
 
-        {/* User profile row at bottom */}
-        <div className="p-2 border-t border-white/5 shrink-0 bg-neutral-950/40">
+        {/* User profile row at bottom — pinned below the player's horizontal range */}
+        <div className="p-2 mt-auto border-t border-white/5 shrink-0 bg-neutral-950/40">
           <div className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors">
             <button
               onClick={onOpenProfile}
@@ -258,6 +260,18 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
               </button>
             )}
           </div>
+          {collapsed && (
+            <button
+              onClick={() => {
+                if (onOpenSettings) onOpenSettings();
+                else router.push("/settings");
+              }}
+              className="mt-1 w-full flex justify-center p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -284,6 +298,18 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
             <span className="text-[10px] tracking-tight">{label}</span>
           </button>
         ))}
+        <button
+          onClick={() => {
+            setMobileExpanded(false);
+            if (onOpenSettings) onOpenSettings();
+            else router.push("/settings");
+          }}
+          className="flex flex-col items-center gap-1 px-4 py-1 rounded-xl cursor-pointer transition-colors text-neutral-400 hover:text-neutral-200"
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight">Settings</span>
+        </button>
       </nav>
     </>
   );

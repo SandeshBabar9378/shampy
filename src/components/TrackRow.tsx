@@ -5,6 +5,7 @@ import { Play, Pause, Heart, Plus, Check, MoreVertical, X, ListPlus, ListEnd, Li
 import { useRouter } from "next/navigation";
 import { Track } from "@/lib/types";
 import { usePlayer } from "@/context/PlayerContext";
+import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 
 interface TrackRowProps {
   track: Track;
@@ -13,6 +14,8 @@ interface TrackRowProps {
   onPlayOverride?: () => void;
   showSimilarBadge?: boolean;
   playlistId?: string;
+  /** Let the song/artist/album text wrap instead of truncating (used by search results). */
+  wrapText?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -22,7 +25,7 @@ function formatDuration(seconds: number): string {
   return `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId }: TrackRowProps) {
+export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId, wrapText = false }: TrackRowProps) {
   const router = useRouter();
   const { currentTrack, isPlaying, playTrack, togglePlay, likedSongIds, toggleLike, playlists, addToPlaylist, queue: appQueue, setAppQueue, playNext, removeFromPlaylist } = usePlayer();
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
@@ -98,7 +101,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
         }`}
       >
         {/* 1. Index & Track Info */}
-        <div className="flex items-center gap-2.5 sm:gap-4 flex-1 min-w-0 pr-2">
+        <div className={`flex items-center gap-2.5 sm:gap-4 min-w-0 pr-2 ${wrapText ? "flex-[1.6]" : "flex-1"}`}>
           <div className="w-6 text-center text-neutral-400 md:group-hover:hidden text-xs font-mono shrink-0">
             {isCurrent && isPlaying ? (
               <span className="w-3 h-3 block mx-auto bg-emerald-400 animate-pulse rounded-full" />
@@ -122,33 +125,34 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
           </button>
 
           <img
-            src={track.coverUrl || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300"}
+            src={getTrackArtworkUrl(track, "max")}
             alt={track.title}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+              e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
             }}
             className="w-10 h-10 rounded object-cover bg-neutral-800 shrink-0"
           />
 
           <div className="min-w-0 flex-1">
             <p
-              className={`flex-1 min-w-0 font-medium truncate hover:underline ${
+              title={wrapText ? track.title : undefined}
+              className={`flex-1 min-w-0 font-medium ${wrapText ? "line-clamp-2 leading-snug" : "truncate"} hover:underline ${
                 isCurrent ? "text-emerald-400" : "text-white"
               }`}
             >
               {track.title}
             </p>
             <p
-              className={`text-xs text-neutral-400 truncate hover:text-white ${track.artistId ? "cursor-pointer hover:underline" : ""}`}
+              className={`text-xs text-neutral-400 ${wrapText ? "truncate" : "truncate"} hover:text-white ${track.artistId ? "cursor-pointer hover:underline" : ""}`}
               onClick={(e) => {
                 if (track.artistId) {
                   e.stopPropagation();
                   router.push(`/artist/${track.artistId}`);
                 }
               }}
-              title={track.artistId ? "Go to artist page" : undefined}
+              title={wrapText ? track.artist : (track.artistId ? "Go to artist page" : undefined)}
             >
               {track.artist}
             </p>
@@ -161,7 +165,10 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
         </div>
 
         {/* 2. Album Name */}
-        <div className="hidden md:block flex-1 text-neutral-400 text-xs truncate pr-4">
+        <div
+          className={`hidden md:block flex-1 min-w-0 text-neutral-400 text-xs pr-4 ${wrapText ? "break-words" : "truncate"}`}
+          title={wrapText ? track.album || "Single" : undefined}
+        >
           {track.album || "Single"}
         </div>
 
@@ -173,7 +180,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
               e.stopPropagation();
               toggleLike(track);
             }}
-            className={`p-1.5 transition-colors cursor-pointer opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto ${
+            className={`hidden md:block p-1.5 transition-colors cursor-pointer opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto ${
               isLiked ? "text-emerald-500" : "text-neutral-500 hover:text-white"
             }`}
             title={isLiked ? "Liked" : "Like"}
@@ -182,7 +189,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
           </button>
 
           {/* Desktop hover actions: Add to Playlist */}
-          <div className="relative opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto">
+          <div className="relative hidden md:block opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -331,16 +338,16 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="fixed inset-x-0 bottom-0 z-50 bg-[#282828] rounded-t-2xl p-4 flex flex-col gap-4 md:hidden text-white shadow-2xl animate-in slide-in-from-bottom duration-200"
+            className="fixed inset-x-0 bottom-0 z-50 bg-[var(--color-neutral-900)] rounded-t-2xl p-4 flex flex-col gap-4 md:hidden text-[var(--color-neutral-50)] shadow-2xl animate-in slide-in-from-bottom duration-200"
           >
             <div className="flex items-center gap-3 pb-2 border-b border-neutral-700">
               <img
-                src={track.coverUrl || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300"}
+                src={getTrackArtworkUrl(track, "max")}
                 alt={track.title}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                 }}
                 className="w-12 h-12 rounded object-cover"
               />

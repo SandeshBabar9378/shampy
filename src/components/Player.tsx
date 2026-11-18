@@ -4,15 +4,16 @@ import React, { useState } from "react";
 import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Volume2, VolumeX,
-  Heart, Loader2, ChevronDown, ListPlus, Check,
-  Mic2, Moon, Gauge, ListMusic, ArrowLeft, Maximize2
+  Heart, Loader2, ListPlus, Check,
+  Mic2, Moon, ListMusic, Maximize2
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
+import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { MobilePlayer } from "@/components/MobilePlayer";
 import { NowPlayingFullscreen } from "@/components/NowPlayingFullscreen";
 import { SleepTimer } from "@/components/SleepTimer";
-import { PlaybackSpeed } from "@/components/PlaybackSpeed";
 import { QueueReorder } from "@/components/QueueReorder";
 
 function formatTime(seconds: number): string {
@@ -22,7 +23,12 @@ function formatTime(seconds: number): string {
   return `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-export function Player() {
+interface PlayerProps {
+  /** Home renders the bar inside the center region with equal side gutters. */
+  embedded?: boolean;
+}
+
+export function Player({ embedded = false }: PlayerProps) {
   const {
     currentTrack, isPlaying, currentTime, duration,
     volume, isMuted, isShuffle, isRepeat, isResolving,
@@ -41,21 +47,17 @@ export function Player() {
   const [showLyrics, setShowLyrics] = useState(false);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showSleepTimer, setShowSleepTimer] = useState(false);
-  const [showSpeed, setShowSpeed] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 
-  const cover = currentTrack?.coverUrl || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300";
-  const dominantColor = useDominantColor(currentTrack?.coverUrl);
+  const cover = getTrackArtworkUrl(currentTrack, "max");
+  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "max"));
 
-  // Opaque cover-based dark gradient for the phone panel (no see-through layers).
-  const mobilePanelBg = (() => {
-    const parts = dominantColor.split(",").map((s) => parseInt(s.trim(), 10));
-    if (parts.length >= 3 && parts.every((n) => !isNaN(n))) {
-      const [r, g, b] = parts.map((n) => Math.round(n * 0.45));
-      return `linear-gradient(180deg, rgb(${r}, ${g}, ${b}) 0%, #121212 65%, #121212 100%)`;
-    }
-    return "linear-gradient(180deg, #1f1f1f 0%, #121212 100%)";
-  })();
+  // In embedded mode the bar is positioned inside the center flex region with
+  // matching left/right gutters, so it stays centered as either sidebar changes.
+  // Detail pages keep the original fixed, viewport-wide bar.
+  const positionClasses = embedded
+    ? "absolute bottom-3 left-3 right-3"
+    : "fixed bottom-3 left-4 right-4";
 
   if (!currentTrack) return null;
 
@@ -76,7 +78,6 @@ export function Player() {
   const toggleSleepTimerMenu = () => {
     setShowSleepTimer((open) => !open);
     setShowLyrics(false);
-    setShowSpeed(false);
     setShowQueue(false);
   };
 
@@ -90,15 +91,15 @@ export function Player() {
           background: `linear-gradient(
             to right,
             rgba(${dominantColor}, 0.25) 0%,
-            rgba(14, 16, 20, 0.92) 40%
+            rgba(var(--player-surface-rgb), 0.94) 40%
           )`,
           backdropFilter: "blur(24px)",
         }}
-        className="hidden sm:flex fixed bottom-3 left-4 right-4 h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500"
+        className={`hidden sm:flex ${positionClasses} h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
       >
 
         {/* LEFT — track info */}
-        <div className="flex items-center gap-3 w-1/4 min-w-[180px]">
+        <div className="flex items-center gap-3 w-[28%] min-w-[170px]">
           <div
             onClick={() => setMobileExpanded(true)}
             className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 group"
@@ -111,12 +112,12 @@ export function Player() {
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
                 }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
               {isResolving && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <div className="theme-dark-surface absolute inset-0 bg-black/60 flex items-center justify-center">
                   <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
                 </div>
               )}
@@ -169,7 +170,7 @@ export function Player() {
               onClick={togglePlay}
               disabled={isResolving}
               title={isPlaying ? "Pause" : "Play"}
-              className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer disabled:opacity-60"
+              className="w-9 h-9 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer disabled:opacity-60"
             >
               {isPlaying
                 ? <Pause className="w-4 h-4 fill-black text-black" />
@@ -208,7 +209,7 @@ export function Player() {
               onMouseUp={handleSeekCommit}
               onTouchEnd={handleSeekCommit}
               style={{
-                background: `linear-gradient(to right, #1DB954 ${seekPercent}%, #4d4d4d ${seekPercent}%)`,
+                background: `linear-gradient(to right, var(--theme-accent) ${seekPercent}%, var(--theme-slider-track) ${seekPercent}%)`,
               }}
               className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
             />
@@ -217,7 +218,7 @@ export function Player() {
         </div>
 
         {/* RIGHT — volume + controls */}
-        <div className="flex items-center justify-end gap-3 w-1/4 min-w-[190px]">
+        <div className="flex items-center justify-end gap-1.5 lg:gap-2 w-[28%] min-w-[170px]">
           <button onClick={toggleMute} className="text-neutral-400 hover:text-white cursor-pointer transition-colors">
             {isMuted || volume === 0
               ? <VolumeX className="w-5 h-5 text-red-400" />
@@ -231,9 +232,9 @@ export function Player() {
             value={isMuted ? 0 : volume}
             onChange={(e) => setVolume(Number(e.target.value))}
             style={{
-              background: `linear-gradient(to right, #1DB954 ${volumePercent}%, #4d4d4d ${volumePercent}%)`,
+              background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--theme-slider-track) ${volumePercent}%)`,
             }}
-            className="w-24 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
+            className="w-14 lg:w-20 xl:w-24 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
           />
 
           {/* Add to Playlist button right of volume */}
@@ -243,11 +244,10 @@ export function Player() {
               onClick={() => {
                 setShowLyrics(!showLyrics);
                 setShowQueue(false);
-                setShowSpeed(false);
                 setShowSleepTimer(false);
                 setShowNowPlaying(false);
               }}
-              className={`p-1.5 cursor-pointer transition-colors ${
+              className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
                 showLyrics ? "text-emerald-400" : "text-neutral-400 hover:text-white"
               }`}
               title="Lyrics"
@@ -260,9 +260,8 @@ export function Player() {
                 setShowQueue(!showQueue);
                 setShowLyrics(false);
                 setShowSleepTimer(false);
-                setShowSpeed(false);
               }}
-              className={`p-1.5 cursor-pointer transition-colors ${
+              className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
                 showQueue ? "text-emerald-400" : "text-neutral-400 hover:text-white"
               }`}
               title="Queue"
@@ -270,22 +269,7 @@ export function Player() {
               <ListMusic className="w-4 h-4" />
             </button>
 
-            <button
-              onClick={() => {
-                setShowSpeed(!showSpeed);
-                setShowLyrics(false);
-                setShowSleepTimer(false);
-                setShowQueue(false);
-              }}
-              className={`p-1.5 cursor-pointer transition-colors ${
-                showSpeed ? "text-emerald-400" : "text-neutral-400 hover:text-white"
-              }`}
-              title="Playback Speed"
-            >
-              <Gauge className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1">
               <div className="relative">
                 <button
                   onClick={toggleSleepTimerMenu}
@@ -304,7 +288,7 @@ export function Player() {
 
             <button
               onClick={() => setShowPlaylistDropdown(!showPlaylistDropdown)}
-              className="p-1.5 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+              className="hidden xl:block p-1.5 text-neutral-400 hover:text-white cursor-pointer transition-colors"
               title="Add to Playlist"
             >
               {addedSuccess ? (
@@ -319,7 +303,6 @@ export function Player() {
                 setShowNowPlaying(true);
                 setShowLyrics(false);
                 setShowSleepTimer(false);
-                setShowSpeed(false);
                 setShowQueue(false);
               }}
               className="p-1.5 cursor-pointer text-neutral-400 hover:text-white transition-colors"
@@ -338,12 +321,6 @@ export function Player() {
             {showQueue && (
               <div className="absolute right-0 bottom-12 z-50">
                 <QueueReorder onClose={() => setShowQueue(false)} />
-              </div>
-            )}
-
-            {showSpeed && (
-              <div className="absolute right-0 bottom-12 z-50">
-                <PlaybackSpeed onClose={() => setShowSpeed(false)} />
               </div>
             )}
 
@@ -390,18 +367,22 @@ export function Player() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          MOBILE MINI-PLAYER — visible only on mobile (sm:hidden)
-          Tap the expand button to see the full-screen overlay player
+          MOBILE MINI-PLAYER — visible only on mobile (sm:hidden).
+          The full-screen player is a separate isolated component so the
+          desktop footer and NowPlayingFullscreen remain untouched.
       ══════════════════════════════════════════════════════════════════════ */}
-      <div className="sm:hidden fixed bottom-14 left-0 right-0 z-40 px-3 pb-1">
-        {!mobileExpanded ? (
-          /* Mini-player bar */
+      <div
+        className={`sm:hidden fixed bottom-14 left-0 right-0 z-40 px-3 pb-1 ${
+          mobileExpanded ? "pointer-events-none" : ""
+        }`}
+      >
+        {!mobileExpanded && (
           <div
             style={{
               background: `linear-gradient(
                 to right,
                 rgba(${dominantColor}, 0.35) 0%,
-                rgba(18, 20, 24, 0.95) 60%
+                rgba(var(--player-surface-rgb), 0.96) 60%
               )`,
               backdropFilter: "blur(20px)",
             }}
@@ -413,7 +394,7 @@ export function Player() {
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+                e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
               }}
               onClick={() => setMobileExpanded(true)}
               className="w-10 h-10 rounded-lg object-cover shrink-0 cursor-pointer"
@@ -424,7 +405,7 @@ export function Player() {
             </div>
             <button
               onClick={togglePlay}
-              className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shrink-0 cursor-pointer"
+              className="w-8 h-8 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center shrink-0 cursor-pointer"
             >
               {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}
             </button>
@@ -432,222 +413,15 @@ export function Player() {
               <SkipForward className="w-5 h-5 fill-current" />
             </button>
           </div>
-        ) : (
-          /* Mobile now-playing panel — covers the upper area; bottom nav (z-50) stays visible */
-          <div
-            style={{
-              background: mobilePanelBg,
-            }}
-            className="fixed inset-x-0 top-0 bottom-14 z-40 flex flex-col px-5 pt-3 pb-4 overflow-y-auto overflow-x-hidden"
-          >
-            {/* Top bar: down-chevron (top right) closes the panel */}
-            <div className="relative flex items-center justify-between mb-3 shrink-0">
-              <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-white/70">
-                Now Playing
-              </span>
-              <button
-                onClick={() => setMobileExpanded(false)}
-                className="text-white/80 hover:text-white p-2 -mr-2 cursor-pointer"
-                title="Close player"
-              >
-                <ChevronDown className="w-6 h-6" />
-              </button>
-            </div>
-
-            {showLyrics ? (
-              /* Separate lyrics view inside the same panel */
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex items-center gap-2 mb-3 shrink-0">
-                  <button
-                    onClick={() => setShowLyrics(false)}
-                    className="p-1.5 -ml-1.5 text-white/80 hover:text-white cursor-pointer"
-                    title="Back to player"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white truncate">Lyrics</p>
-                    <p className="text-xs text-white/60 truncate">
-                      {currentTrack.title} • {currentTrack.artist}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 [&>div]:w-full [&>div]:h-full">
-                  <LyricsPanel onClose={() => setShowLyrics(false)} variant="mobile" />
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Large rounded cover (~70% of panel width) */}
-                <div className="flex justify-center mb-5 shrink-0">
-                  <img
-                    src={cover}
-                    alt={currentTrack.title}
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
-                    }}
-                    className="w-[70%] max-w-[320px] aspect-square rounded-2xl object-cover shadow-2xl"
-                  />
-                </div>
-
-                {/* Track info + like */}
-                <div className="w-full flex items-start justify-between gap-3 mb-4 shrink-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-2xl font-bold text-white truncate">{currentTrack.title}</p>
-                    <p className="text-sm text-white/60 mt-1 truncate">{currentTrack.artist}</p>
-                  </div>
-                  <button
-                    onClick={() => toggleLike(currentTrack)}
-                    className={`p-2 shrink-0 cursor-pointer ${isLiked ? "text-emerald-400" : "text-white/70 hover:text-white"}`}
-                    title={isLiked ? "Liked" : "Like"}
-                  >
-                    <Heart className={`w-6 h-6 ${isLiked ? "fill-emerald-400" : ""}`} />
-                  </button>
-                </div>
-
-                {/* Progress */}
-                <div className="w-full flex items-center gap-3 mb-5 text-xs text-white/60 font-mono shrink-0">
-                  <span className="w-9 text-left">{formatTime(isSeeking ? seekVal : currentTime)}</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={duration || 100}
-                    value={isSeeking ? seekVal : currentTime}
-                    onChange={handleSeekChange}
-                    onTouchEnd={handleSeekCommit}
-                    onMouseUp={handleSeekCommit}
-                    style={{
-                      background: `linear-gradient(to right, #1DB954 ${seekPercent}%, rgba(255,255,255,0.25) ${seekPercent}%)`,
-                    }}
-                    className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
-                  />
-                  <span className="w-9 text-right">{formatTime(duration)}</span>
-                </div>
-
-                {/* Controls: shuffle, previous, play/pause (large white circle), next, repeat */}
-                <div className="flex items-center justify-between w-full mb-5 shrink-0">
-                  <button onClick={toggleShuffle} className={`cursor-pointer ${isShuffle ? "text-emerald-400" : "text-white/70 hover:text-white"}`}>
-                    <Shuffle className="w-5 h-5" />
-                  </button>
-                  <button onClick={prevTrack} className="text-white cursor-pointer">
-                    <SkipBack className="w-8 h-8 fill-current" />
-                  </button>
-                  <button
-                    onClick={togglePlay}
-                    disabled={isResolving}
-                    className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center cursor-pointer disabled:opacity-60 shadow-xl"
-                  >
-                    {isPlaying ? <Pause className="w-7 h-7 fill-black" /> : <Play className="w-7 h-7 fill-black ml-1" />}
-                  </button>
-                  <button onClick={nextTrack} className="text-white cursor-pointer">
-                    <SkipForward className="w-8 h-8 fill-current" />
-                  </button>
-                  <button onClick={toggleRepeat} className={`cursor-pointer ${isRepeat ? "text-emerald-400" : "text-white/70 hover:text-white"}`}>
-                    <Repeat className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Extra Metrolist mobile buttons */}
-                <div className="flex items-center justify-around w-full max-w-xs mx-auto mb-4 shrink-0">
-                  <button
-                    onClick={() => {
-                      setShowLyrics(true);
-                      setShowSleepTimer(false);
-                      setShowSpeed(false);
-                      setShowQueue(false);
-                    }}
-                    className={`p-2 rounded-full cursor-pointer transition-colors ${
-                      showLyrics ? "bg-white/20 text-emerald-400" : "text-white/70 hover:text-white"
-                    }`}
-                    title="Lyrics"
-                  >
-                    <Mic2 className="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowQueue(!showQueue);
-                      setShowSleepTimer(false);
-                      setShowSpeed(false);
-                    }}
-                    className={`p-2 rounded-full cursor-pointer transition-colors ${
-                      showQueue ? "bg-white/20 text-emerald-400" : "text-white/70 hover:text-white"
-                    }`}
-                    title="Queue"
-                  >
-                    <ListMusic className="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowSpeed(!showSpeed);
-                      setShowSleepTimer(false);
-                      setShowQueue(false);
-                    }}
-                    className={`p-2 rounded-full cursor-pointer transition-colors ${
-                      showSpeed ? "bg-white/20 text-emerald-400" : "text-white/70 hover:text-white"
-                    }`}
-                    title="Speed"
-                  >
-                    <Gauge className="w-5 h-5" />
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    <div className="relative">
-                      <button
-                        onClick={toggleSleepTimerMenu}
-                        className={`p-2 rounded-full cursor-pointer transition-colors ${
-                          showSleepTimer ? "bg-white/20 text-emerald-400" : "text-white/70 hover:text-white"
-                        }`}
-                        title="Sleep Timer"
-                      >
-                        <Moon className="w-5 h-5" />
-                      </button>
-                    </div>
-                    {sleepTimerRunning && (
-                      <span className="min-w-[30px] text-[10px] font-mono text-emerald-400">{sleepLabel}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Mobile Overlays (queue / speed / sleep) */}
-                {showQueue && (
-                  <div className="w-full mb-4 flex justify-center shrink-0">
-                    <QueueReorder onClose={() => setShowQueue(false)} />
-                  </div>
-                )}
-                {showSpeed && (
-                  <div className="w-full mb-4 flex justify-center shrink-0">
-                    <PlaybackSpeed onClose={() => setShowSpeed(false)} />
-                  </div>
-                )}
-                {showSleepTimer && (
-                  <div className="w-full mb-4 flex justify-center shrink-0">
-                    <SleepTimer onClose={() => setShowSleepTimer(false)} />
-                  </div>
-                )}
-
-                {/* Volume */}
-                <div className="w-full flex items-center gap-3 shrink-0">
-                  <VolumeX className="w-4 h-4 text-white/60" />
-                  <input
-                    type="range" min={0} max={1} step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolume(Number(e.target.value))}
-                    style={{
-                      background: `linear-gradient(to right, #1DB954 ${volumePercent}%, rgba(255,255,255,0.25) ${volumePercent}%)`,
-                    }}
-                    className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
-                  />
-                  <Volume2 className="w-4 h-4 text-white/60" />
-                </div>
-              </>
-            )}
-          </div>
         )}
       </div>
+
+      {mobileExpanded && (
+        <div className="sm:hidden">
+          <MobilePlayer onClose={() => setMobileExpanded(false)} />
+        </div>
+      )}
+
       {/* Full-Screen Now Playing Overlay */}
       <NowPlayingFullscreen
         isOpen={showNowPlaying}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getYouTubeThumbnailUrl } from "@/lib/artwork";
 
 type JsonObject = Record<string, unknown>;
 
@@ -59,16 +60,13 @@ function parseDuration(text: string): number {
   return 0;
 }
 
-function lastThumbnailUrl(value: unknown): string {
+function lastThumbnailUrl(value: unknown, videoId?: string): string {
   const renderer = asObject(value);
   const thumbnailRenderer = asObject(renderer?.musicThumbnailRenderer);
   const thumbnails = asArray(
     asObject(thumbnailRenderer?.thumbnail)?.thumbnails,
   ) as { url?: string }[];
-  return (
-    asString(thumbnails[thumbnails.length - 1]?.url) ||
-    asString(thumbnails[0]?.url)
-  );
+  return getYouTubeThumbnailUrl(thumbnails, videoId);
 }
 
 function parseAlbumTrack(item: unknown, albumTitle: string, albumArtist: string): AlbumTrack | null {
@@ -120,7 +118,7 @@ function parseAlbumTrack(item: unknown, albumTitle: string, albumArtist: string)
     title,
     artist: trackArtist,
     album: albumTitle,
-    thumbnail: lastThumbnailUrl(renderer.thumbnail),
+    thumbnail: lastThumbnailUrl(renderer.thumbnail, videoId),
     duration: parseDuration(durationText),
   };
 }

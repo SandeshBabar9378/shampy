@@ -13,6 +13,7 @@ import {
   isValidTranscriptList,
 } from "@/lib/transcript";
 import { SleepTimer } from "@/components/SleepTimer";
+import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 
 interface LyricLine {
   time: number;
@@ -245,10 +246,10 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
 
   if (!isOpen) return null;
 
-  const cover = currentTrack?.coverUrl || "/placeholder.svg";
+  const cover = getTrackArtworkUrl(currentTrack, "max");
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white select-none overflow-hidden animate-in fade-in duration-300">
+    <div data-theme-region="legacy-dark" className="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white select-none overflow-hidden animate-in fade-in duration-300">
       {/* Dynamic blurred background from artwork */}
       <div
         className="absolute inset-0 bg-cover bg-center opacity-25 blur-3xl scale-125 pointer-events-none transition-all duration-1000"
@@ -291,7 +292,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
-                  e.currentTarget.src = "/placeholder.svg";
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
                 }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
@@ -417,12 +418,12 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
                       }`}
                     >
                       <img
-                        src={track.coverUrl || "/placeholder.svg"}
+                        src={getTrackArtworkUrl(track, "max")}
                         alt={track.title}
                         crossOrigin="anonymous"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          e.currentTarget.src = "/placeholder.svg";
+                          e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                         }}
                         className="w-9 h-9 rounded-lg object-cover shrink-0 bg-neutral-800"
                       />
@@ -453,7 +454,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg";
+              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
             }}
             className="w-12 h-12 rounded-xl object-cover shrink-0 bg-neutral-800 shadow"
           />

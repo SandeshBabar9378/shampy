@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from "r
 import { Track, Playlist, UserProfile, SavedPlaylist, FollowedArtist } from "@/lib/types";
 import { CURATED_TRACKS } from "@/lib/musicProvider";
 import { getSimilarSongs } from "@/lib/similarity";
+import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 import { isValidVideoId } from "@/lib/videoId";
 
 interface YTPlayerInstance {
@@ -35,6 +36,8 @@ export const SLEEP_TIMER_OPTIONS: SleepTimerOption[] = [
   { label: "End of song", seconds: null },
 ];
 
+export type ThemeId = "aurora" | "ocean" | "graphite";
+
 interface PlayerContextType {
   currentTrack: Track | null;
   isPlaying: boolean;
@@ -52,6 +55,8 @@ interface PlayerContextType {
   playlists: Playlist[];
   savedPlaylists: SavedPlaylist[];
   followedArtists: FollowedArtist[];
+  theme: ThemeId;
+  setTheme: (theme: ThemeId) => void;
   mobileExpanded: boolean;
   playbackRate: number;
   availableRates: number[];
@@ -112,6 +117,32 @@ function lsGetJSON<T>(key: string, fallback: T): T {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
+  // Start on Aurora Glow so SSR and the first client render match. The
+  // pre-paint script in layout.tsx has already put the stored theme on <html>;
+  // this effect only re-syncs React state and re-applies it (no flash).
+  const [theme, setThemeValue] = useState<ThemeId>("aurora");
+  const [themeReady, setThemeReady] = useState(false);
+
+  useEffect(() => {
+    const stored = lsGet("shubhu_theme");
+    setThemeValue(stored === "ocean" || stored === "graphite" ? stored : "aurora");
+    setThemeReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!themeReady) return;
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme, themeReady]);
+
+  const setTheme = (next: ThemeId) => {
+    setThemeValue(next);
+    lsSet("shubhu_theme", next);
+    // Apply immediately; the effect below keeps React state and <html> in sync.
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", next);
+    }
+  };
+
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [queue, setQueue] = useState<Track[]>([]);
@@ -291,7 +322,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 title: item.title,
                 artist: item.artist,
                 album: item.album || "",
-                coverUrl: item.thumbnail || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300",
+                coverUrl: item.thumbnail || getDefaultArtworkFallbackUrl(),
                 duration: item.duration || 180,
                 youtubeId: item.videoId,
                 audioUrl: "",
@@ -1037,7 +1068,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         currentTime, duration, volume, isMuted,
         isShuffle, isRepeat, isResolving,
         user, likedSongIds, playlists, savedPlaylists,
-        followedArtists, mobileExpanded, playbackRate, availableRates,
+        followedArtists, theme, mobileExpanded, playbackRate, availableRates,
         sleepEndsAt, sleepRemainingSeconds, sleepAtEndOfSong, sleepTimerNotice,
         setPlaybackRate, setMobileExpanded, setAppQueue, playNext,
         playTrack, togglePlay, nextTrack, prevTrack,
@@ -1045,7 +1076,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         selectSleepTimer, cancelSleepTimer,
         toggleLike, updateUser, refreshLibrary, createPlaylist, addToPlaylist,
         updatePlaylist, deletePlaylist, removeFromPlaylist, toggleSavedPlaylist,
-        toggleFollowArtist,
+        toggleFollowArtist, setTheme,
       }}
     >
       {children}

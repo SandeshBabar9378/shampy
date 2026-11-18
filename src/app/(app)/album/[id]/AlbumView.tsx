@@ -4,9 +4,9 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Disc3, Play } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
-import { Player } from "@/components/Player";
 import { TrackRow } from "@/components/TrackRow";
 import { Track } from "@/lib/types";
+import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 
 interface AlbumTrack {
   videoId: string;
@@ -30,7 +30,7 @@ function toTrack(item: AlbumTrack): Track {
     title: item.title,
     artist: item.artist,
     album: item.album,
-    coverUrl: item.thumbnail || "/placeholder.svg",
+    coverUrl: item.thumbnail || getDefaultArtworkFallbackUrl(),
     duration: item.duration || 0,
     youtubeId: item.videoId,
   };
@@ -73,9 +73,8 @@ export function AlbumView({ id }: { id: string }) {
   const tracks: Track[] = album ? album.tracks.map(toTrack) : [];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-black text-white">
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-black">
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-44 sm:pb-32 scrollbar-thin scrollbar-thumb-neutral-800">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-3 sm:mb-6"
@@ -107,7 +106,7 @@ export function AlbumView({ id }: { id: string }) {
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg";
+                        e.currentTarget.src = getDefaultArtworkFallbackUrl();
                       }}
                       className="w-full h-full object-cover"
                     />
@@ -159,10 +158,7 @@ export function AlbumView({ id }: { id: string }) {
               </div>
             </div>
           )}
-        </main>
-      </div>
-
-      <Player />
+      </main>
     </div>
   );
 }

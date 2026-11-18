@@ -106,7 +106,7 @@ export function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-sm rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+              className="px-6 py-2 bg-emerald-500 hover:bg-[var(--theme-accent-strong)] text-black font-semibold text-sm rounded-full transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
             >
               {saved ? (
                 <>

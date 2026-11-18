@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { LyricsPanel } from "@/components/LyricsPanel";
+import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -15,11 +16,11 @@ interface RightPanelProps {
 export function RightPanel({ isOpen, onClose }: RightPanelProps) {
   const { currentTrack, isPlaying, togglePlay, queue, playTrack } = usePlayer();
   const [subTab, setSubTab] = useState<"upnext" | "lyrics">("upnext");
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   if (!isOpen) return null;
 
-  const cover = currentTrack?.coverUrl || "/placeholder.svg";
+  const cover = getTrackArtworkUrl(currentTrack, "max");
 
   // Collapsed strip matching the left sidebar collapsed width (~60px)
   if (isCollapsed) {
@@ -55,11 +56,11 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                e.currentTarget.src = "/placeholder.svg";
+                e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
               }}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="theme-dark-surface absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-white text-white" />
               ) : (
@@ -85,12 +86,12 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
                 title={`${track.title} - ${track.artist}`}
               >
                 <img
-                  src={track.coverUrl || "/placeholder.svg"}
+                  src={getTrackArtworkUrl(track, "max")}
                   alt={track.title}
                   crossOrigin="anonymous"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
-                    e.currentTarget.src = "/placeholder.svg";
+                    e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                   }}
                   className="w-full h-full object-cover"
                 />
@@ -129,7 +130,7 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
             onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg";
+              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
             }}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
@@ -144,10 +145,10 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
           )}
         </div>
 
-        <h3 className="font-display font-bold text-base text-white truncate max-w-full leading-tight">
+        <h3 className="font-display font-bold text-base text-white line-clamp-2 max-w-full leading-tight" title={currentTrack?.title || undefined}>
           {currentTrack?.title || "No track playing"}
         </h3>
-        <p className="text-xs text-neutral-400 truncate max-w-full mt-1">
+        <p className="text-xs text-neutral-400 truncate max-w-full mt-1" title={currentTrack?.artist || undefined}>
           {currentTrack?.artist || "Pick a song to start listening"}
         </p>
 
@@ -168,7 +169,7 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             onClick={() => setSubTab("upnext")}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               subTab === "upnext"
-                ? "bg-white text-black shadow-sm"
+                ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
@@ -178,7 +179,7 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             onClick={() => setSubTab("lyrics")}
             className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               subTab === "lyrics"
-                ? "bg-white text-black shadow-sm"
+                ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] shadow-sm"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
@@ -209,12 +210,12 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
                     }`}
                   >
                     <img
-                      src={track.coverUrl || "/placeholder.svg"}
+                      src={getTrackArtworkUrl(track, "max")}
                       alt={track.title}
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg";
+                        e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                       }}
                       className="w-10 h-10 rounded-lg object-cover shrink-0 bg-neutral-800 shadow"
                     />
@@ -239,8 +240,8 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             )}
           </div>
         ) : (
-          <div className="h-full flex items-center justify-center p-1">
-            <LyricsPanel onClose={() => setSubTab("upnext")} />
+          <div className="h-full">
+            <LyricsPanel onClose={() => setSubTab("upnext")} variant="panel" />
           </div>
         )}
       </div>

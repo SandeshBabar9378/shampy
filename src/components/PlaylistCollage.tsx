@@ -3,6 +3,7 @@
 import React from "react";
 import { Music } from "lucide-react";
 import { Track } from "@/lib/types";
+import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 
 interface PlaylistCollageProps {
   tracks?: Track[];
@@ -10,7 +11,7 @@ interface PlaylistCollageProps {
   className?: string;
 }
 
-const DEFAULT_FALLBACK = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format";
+const DEFAULT_FALLBACK = getDefaultArtworkFallbackUrl();
 
 export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-full h-full" }: PlaylistCollageProps) {
   // Collect images with covers

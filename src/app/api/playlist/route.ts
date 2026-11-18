@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getYouTubeThumbnailUrl } from "@/lib/artwork";
 
 interface PlaylistTrack {
   videoId: string;
@@ -63,14 +64,13 @@ function parseDuration(text: string): number {
   return 0;
 }
 
-function lastThumbnailUrl(value: unknown): string {
+function lastThumbnailUrl(value: unknown, videoId?: string): string {
   const renderer = asObject(value);
   const thumbnailRenderer = asObject(renderer?.musicThumbnailRenderer);
   const thumbnails = asArray(asObject(thumbnailRenderer?.thumbnail)?.thumbnails) as {
     url?: string;
   }[];
-  const url = asString(thumbnails[thumbnails.length - 1]?.url) || asString(thumbnails[0]?.url);
-  return url;
+  return getYouTubeThumbnailUrl(thumbnails, videoId);
 }
 
 function normalizePlaylistId(raw: string): string {
@@ -121,7 +121,7 @@ function parsePlaylistTrack(value: unknown): PlaylistTrack | null {
     title,
     artist: flexColumns[1] || "Unknown Artist",
     album: flexColumns[2] || "",
-    thumbnail: lastThumbnailUrl(item.thumbnail),
+    thumbnail: lastThumbnailUrl(item.thumbnail, videoId),
     duration: parseDuration(durationText),
   };
 }

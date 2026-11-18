@@ -4,9 +4,9 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mic2, Play, Disc3, ListMusic, UserPlus, Check } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
-import { Player } from "@/components/Player";
 import { TrackRow } from "@/components/TrackRow";
 import { Track } from "@/lib/types";
+import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 
 interface ArtistTrack {
   videoId: string;
@@ -58,7 +58,7 @@ function toTrack(item: ArtistTrack): Track {
     title: item.title,
     artist: item.artist,
     album: item.album,
-    coverUrl: item.thumbnail || "/placeholder.svg",
+    coverUrl: item.thumbnail || getDefaultArtworkFallbackUrl(),
     duration: item.duration || 0,
     youtubeId: item.videoId,
   };
@@ -132,9 +132,8 @@ export function ArtistView({ id }: { id: string }) {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-black text-white">
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-black">
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-44 sm:pb-32 scrollbar-thin scrollbar-thumb-neutral-800">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-3 sm:mb-6"
@@ -166,7 +165,7 @@ export function ArtistView({ id }: { id: string }) {
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg";
+                        e.currentTarget.src = getDefaultArtworkFallbackUrl();
                       }}
                       className="w-full h-full object-cover"
                     />
@@ -263,7 +262,7 @@ export function ArtistView({ id }: { id: string }) {
                         onClick={() => setDiscographyTab("popular")}
                         className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                           discographyTab === "popular"
-                            ? "bg-white text-black"
+                            ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                             : "bg-neutral-800 text-neutral-400 hover:text-white"
                         }`}
                       >
@@ -274,7 +273,7 @@ export function ArtistView({ id }: { id: string }) {
                           onClick={() => setDiscographyTab("albums")}
                           className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                             discographyTab === "albums"
-                              ? "bg-white text-black"
+                              ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                               : "bg-neutral-800 text-neutral-400 hover:text-white"
                           }`}
                         >
@@ -286,7 +285,7 @@ export function ArtistView({ id }: { id: string }) {
                           onClick={() => setDiscographyTab("singles")}
                           className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                             discographyTab === "singles"
-                              ? "bg-white text-black"
+                              ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)]"
                               : "bg-neutral-800 text-neutral-400 hover:text-white"
                           }`}
                         >
@@ -311,7 +310,7 @@ export function ArtistView({ id }: { id: string }) {
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
@@ -354,7 +353,7 @@ export function ArtistView({ id }: { id: string }) {
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
@@ -400,7 +399,7 @@ export function ArtistView({ id }: { id: string }) {
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
@@ -421,10 +420,7 @@ export function ArtistView({ id }: { id: string }) {
               )}
             </div>
           )}
-        </main>
-      </div>
-
-      <Player />
+      </main>
     </div>
   );
 }

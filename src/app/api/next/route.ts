@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 
 interface FormattedNextResult {
   videoId: string;
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
             title,
             artist: artist || "Unknown Artist",
             album: album || "",
-            thumbnail: thumbnail || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format",
+            thumbnail: thumbnail || getDefaultArtworkFallbackUrl(),
             duration: duration || 0,
           });
         }

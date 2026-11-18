@@ -8,7 +8,7 @@ import { classifyScript, extractBrackets } from "@/lib/script";
 
 interface LyricsPanelProps {
   onClose?: () => void;
-  variant?: "mobile";
+  variant?: "mobile" | "panel";
 }
 
 interface TransliterationResponse {
@@ -141,8 +141,13 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
     }
   }, [activeIndex]);
 
+  const panelClassName =
+    variant === "panel"
+      ? "w-full h-full rounded-none border-0 bg-transparent p-2 shadow-none"
+      : "bg-neutral-900 border border-neutral-800 rounded-xl p-4 w-80 md:w-96 h-96 shadow-2xl";
+
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 w-80 md:w-96 h-96 flex flex-col shadow-2xl text-white select-none">
+    <div className={`flex flex-col text-white select-none ${panelClassName}`}>
       <div className="flex items-center justify-between mb-3 border-b border-neutral-800 pb-2">
         <div className="flex items-center gap-2">
           <Mic2 className="w-4 h-4 text-emerald-400" />

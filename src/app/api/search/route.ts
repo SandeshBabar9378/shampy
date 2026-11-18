@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCommunityPlaylist } from "@/lib/playlistUtils";
+import { getYouTubeThumbnailUrl, getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 
 interface FormattedSearchResult {
   videoId: string;
@@ -276,17 +277,14 @@ function parseResponsiveItem(value: unknown): FormattedSearchResult | null {
   const thumbnails = asArray(
     item.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails,
   ) as { url?: string }[];
-  const thumbnail =
-    asString(thumbnails[thumbnails.length - 1]?.url) || asString(thumbnails[0]?.url);
+  const thumbnail = getYouTubeThumbnailUrl(thumbnails, videoId);
 
   return {
     videoId,
     title,
     artist: artist || "Unknown Artist",
     album,
-    thumbnail:
-      thumbnail ||
-      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format",
+    thumbnail: thumbnail || getDefaultArtworkFallbackUrl(),
     duration: parseDuration(durationText),
     artistId,
   };
@@ -324,8 +322,7 @@ function parseCardShelf(value: unknown): FormattedSearchResult | null {
   const thumbnails = asArray(
     card.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails,
   ) as { url?: string }[];
-  const thumbnail =
-    asString(thumbnails[thumbnails.length - 1]?.url) || asString(thumbnails[0]?.url);
+  const thumbnail = getYouTubeThumbnailUrl(thumbnails, videoId);
 
   return {
     videoId,
@@ -390,8 +387,7 @@ function parseBrowseFields(value: unknown): BrowseFields | null {
   const thumbnails = asArray(
     item.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails,
   ) as { url?: string }[];
-  const thumbnail =
-    asString(thumbnails[thumbnails.length - 1]?.url) || asString(thumbnails[0]?.url);
+  const thumbnail = getYouTubeThumbnailUrl(thumbnails);
 
   if (!browseId || !title) return null;
 

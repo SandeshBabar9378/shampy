@@ -41,6 +41,7 @@ import {
 } from "@/lib/transcript";
 import { SleepTimer } from "@/components/SleepTimer";
 import { Track } from "@/lib/types";
+import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 
 interface NowPlayingFullscreenProps {
   isOpen: boolean;
@@ -174,8 +175,8 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   const resumeTimerRef = useRef<number | null>(null);
   const seekRef = useRef(seek);
 
-  const cover = currentTrack?.coverUrl || "/placeholder.svg";
-  const dominantColor = useDominantColor(currentTrack?.coverUrl);
+  const cover = getTrackArtworkUrl(currentTrack, "max");
+  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "max"));
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
   const effectiveTime = isSeeking ? seekVal : currentTime;
   const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (effectiveTime / duration) * 100)) : 0;
@@ -502,7 +503,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#08090a] text-white select-none overflow-hidden">
+    <div data-theme-region="legacy-dark" className="fixed inset-0 z-[70] h-[100dvh] bg-[#08090a] text-white select-none overflow-hidden overflow-x-hidden">
       {/* Blurred cover background, faded on song change */}
       <div key={currentTrack.id} className="absolute inset-0 shubhu-bg-fade pointer-events-none">
         <div
@@ -519,7 +520,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
 
       {/* Inner rounded frame */}
       <div className="relative z-10 h-full w-full md:p-3">
-        <div className="flex h-full w-full flex-col overflow-y-auto md:overflow-hidden rounded-none md:rounded-3xl border-0 md:border md:border-white/10 bg-black/25 backdrop-blur-sm">
+        <div className="flex h-full w-full flex-col overflow-hidden overscroll-contain rounded-none md:rounded-3xl border-0 md:border md:border-white/10 bg-black/25 backdrop-blur-sm">
           {/* Top bar */}
           <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
             <button
@@ -536,14 +537,17 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
           </header>
 
           {/* Main content */}
-          <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-6 md:gap-8 px-4 sm:px-6 md:px-8 pb-4 md:pb-6 md:overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-[clamp(0.5rem,1.8dvh,1.5rem)] md:gap-8 px-4 sm:px-6 md:px-8 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-6 overflow-hidden overflow-x-hidden">
             {/* LEFT COLUMN */}
-            <div className="w-full md:w-[45%] shrink-0 flex flex-col min-h-0 md:justify-center">
+            <div className="w-full md:w-[45%] shrink-0 flex flex-col min-h-0 md:justify-center gap-[clamp(0.55rem,1.8dvh,1.5rem)] md:gap-0 pt-[clamp(0.75rem,3dvh,2rem)] md:pt-0">
               {/* Cover + vinyl: one centered group, width in percentages */}
-              <div className="relative mx-auto w-[81%] aspect-[27/20] mb-5 md:mb-6">
+              {/* Mobile: cover stays optically centered on screen (vinyl overhangs right).
+                  md+ keeps the original 81% / aspect-27:20 composition exactly. */}
+              <div className="w-full flex justify-center md:contents">
+                <div className="relative w-[min(54%,24dvh)] max-w-[270px] aspect-square md:w-[81%] md:max-w-none md:aspect-[27/20] md:mx-auto md:mb-6">
                 {/* Vinyl disc behind: right 35% of its diameter sticks out past the cover */}
                 <div
-                  className="absolute left-[25.93%] top-1/2 -translate-y-1/2 w-[74.07%] aspect-square rounded-full shadow-2xl shubhu-vinyl overflow-hidden"
+                  className="absolute left-[34%] md:left-[25.93%] top-1/2 -translate-y-1/2 w-full md:w-[74.07%] aspect-square rounded-full shadow-2xl shubhu-vinyl overflow-hidden"
                   style={{
                     animationPlayState: isPlaying ? "running" : "paused",
                     background:
@@ -587,30 +591,31 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                 </div>
 
                 {/* Cover square on top */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[74.07%] aspect-square rounded-2xl overflow-hidden border border-white/10 shadow-2xl z-10 bg-neutral-900">
+                <div className="absolute left-0 md:left-0 top-1/2 -translate-y-1/2 w-full md:w-[74.07%] aspect-square rounded-2xl overflow-hidden border border-white/10 shadow-2xl z-10 bg-neutral-900">
                   <img
                     src={cover}
                     alt={currentTrack.title}
                     crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      e.currentTarget.src = "/placeholder.svg";
+                      e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
                     }}
                     className="w-full h-full object-cover"
                   />
+                </div>
                 </div>
               </div>
 
               {/* Title + actions */}
               <div className="relative">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight text-white truncate">
+                <div className="flex flex-col items-center text-center md:text-left md:flex-row md:items-start md:justify-between gap-2 md:gap-3">
+                  <div className="min-w-0 w-full md:flex-1">
+                    <h1 className="text-2xl sm:text-3xl font-display font-bold tracking-tight text-white truncate text-center md:text-left">
                       {currentTrack.title}
                     </h1>
-                    <p className="text-sm text-neutral-400 truncate mt-1">{currentTrack.artist}</p>
+                    <p className="text-sm text-neutral-400 truncate mt-1 text-center md:text-left">{currentTrack.artist}</p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0 absolute right-0 -top-1 md:static md:right-auto md:top-auto">
                     <button
                       onClick={() => toggleLike(currentTrack)}
                       className={`p-2 rounded-full transition-colors cursor-pointer ${
@@ -734,7 +739,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
               </div>
 
               {/* Progress */}
-              <div className="w-full flex items-center gap-2.5 text-[11px] text-neutral-400 font-mono mt-5">
+              <div className="w-full flex items-center gap-2.5 text-[11px] text-neutral-400 font-mono mt-0 md:mt-5">
                 <span className="w-10 text-left tabular-nums">{formatTime(effectiveTime)}</span>
                 <input
                   type="range"
@@ -754,17 +759,20 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
               </div>
 
               {/* Controls centered with even spacing */}
-              <div className="flex items-center justify-center gap-7 sm:gap-9 w-full mt-4 md:mt-5">
+              <div className="flex items-center justify-center gap-7 sm:gap-9 w-full mt-0 md:mt-5">
                 <button
                   onClick={toggleShuffle}
-                  className={`relative p-1 cursor-pointer transition-colors ${
-                    isShuffle ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+                  aria-pressed={isShuffle}
+                  className={`relative p-2 cursor-pointer rounded-full transition-all duration-200 ${
+                    isShuffle
+                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                      : "text-neutral-400 hover:text-white"
                   }`}
-                  title="Shuffle"
+                  title={isShuffle ? "Shuffle on" : "Shuffle off"}
                 >
                   <Shuffle className="w-5 h-5" />
                   {isShuffle && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-400 rounded-full" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
                   )}
                 </button>
                 <button
@@ -797,20 +805,23 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                 </button>
                 <button
                   onClick={toggleRepeat}
-                  className={`relative p-1 cursor-pointer transition-colors ${
-                    isRepeat ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+                  aria-pressed={isRepeat}
+                  className={`relative p-2 cursor-pointer rounded-full transition-all duration-200 ${
+                    isRepeat
+                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                      : "text-neutral-400 hover:text-white"
                   }`}
-                  title="Repeat"
+                  title={isRepeat ? "Repeat on" : "Repeat off"}
                 >
                   <Repeat className="w-5 h-5" />
                   {isRepeat && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-400 rounded-full" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
                   )}
                 </button>
               </div>
 
               {/* Volume: ~60% width, centered */}
-              <div className="w-[60%] mx-auto flex items-center gap-3 mt-[18px] pb-1">
+              <div className="w-[60%] mx-auto flex items-center gap-3 mt-0 md:mt-[18px] pb-1">
                 <button
                   onClick={toggleMute}
                   className="text-neutral-400 hover:text-white transition-colors cursor-pointer shrink-0"
@@ -836,7 +847,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
             </div>
 
             {/* RIGHT COLUMN */}
-            <div className="w-full md:flex-1 md:min-w-0 flex flex-col min-h-0 md:h-full h-[65vh]">
+            <div className="w-full md:flex-1 md:min-w-0 flex flex-col min-h-0 flex-1 md:h-full">
               <div className="flex-1 min-h-0 relative">
                 {rightView === "lyrics" ? (
                   <div
@@ -915,12 +926,12 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                               }`}
                             >
                               <img
-                                src={track.coverUrl || "/placeholder.svg"}
+                                src={getTrackArtworkUrl(track, "max")}
                                 alt={track.title}
                                 crossOrigin="anonymous"
                                 referrerPolicy="no-referrer"
                                 onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
+                                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                                 }}
                                 className="w-10 h-10 rounded-lg object-cover bg-neutral-800 shrink-0"
                               />
@@ -950,7 +961,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
               </div>
 
               {/* Bottom-right view toggles */}
-              <div className="flex items-center justify-end gap-2 pt-3 shrink-0">
+              <div className="flex items-center justify-end gap-2 pt-2 md:pt-3 pb-[max(0.125rem,env(safe-area-inset-bottom))] md:pb-0 shrink-0">
                 <button
                   onClick={() => setRightView("lyrics")}
                   className={`p-2 rounded-full transition-colors cursor-pointer ${

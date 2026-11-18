@@ -26,19 +26,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/components/Sidebar";
-import { Navbar } from "@/components/Navbar";
-import { Player } from "@/components/Player";
-import { RightPanel } from "@/components/RightPanel";
 import { TrackRow } from "@/components/TrackRow";
 import { PlaylistCard } from "@/components/PlaylistCard";
-import { UserProfileModal } from "@/components/UserProfileModal";
 import { CreatePlaylistModal } from "@/components/CreatePlaylistModal";
+import { useAppShell } from "@/context/AppShellContext";
 import { usePlayer } from "@/context/PlayerContext";
 import { Track, Playlist } from "@/lib/types";
 import { FEATURED_PLAYLISTS, CURATED_TRACKS } from "@/lib/musicProvider";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { PlaylistCollage } from "@/components/PlaylistCollage";
+import { getDefaultArtworkFallbackUrl, getTrackArtworkFallbackUrl, getTrackArtworkUrl, getYouTubeArtworkUrl } from "@/lib/artwork";
 
 // Cinematic carousel per-offset values (index = distance from the active cover).
 const CAROUSEL_SCALE = [1, 0.96, 0.9, 0.82];
@@ -74,10 +71,9 @@ const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
 
 export default function Home() {
   const router = useRouter();
-  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, queue, setAppQueue, addToPlaylist, deletePlaylist } = usePlayer();
+  const { currentView, setCurrentView, searchQuery, setSearchQuery, openCreatePlaylist } = useAppShell();
+  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, queue, setAppQueue, deletePlaylist } = usePlayer();
 
-  const [currentView, setCurrentView] = useState<string>("home");
-  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [searchArtists, setSearchArtists] = useState<{ name: string; image: string; browseId: string }[]>([]);
   const [searchAlbums, setSearchAlbums] = useState<{ title: string; artist: string; cover: string; browseId: string }[]>([]);
@@ -90,16 +86,12 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState<Track[]>([]);
   const [likedTracks, setLikedTracks] = useState<Track[]>([]);
 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [isEditPlaylistOpen, setIsEditPlaylistOpen] = useState(false);
-  const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<Track | null>(null);
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
   const [playlistSortKey, setPlaylistSortKey] = useState<"default" | "title" | "artist" | "duration">("default");
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [languagePreference, setLanguagePreference] = useState<string>("Hindi");
-  const [showRightPanel, setShowRightPanel] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [mounted, setMounted] = useState(false);
 
@@ -144,7 +136,7 @@ export default function Home() {
         if (rawTracks.length > 0) {
           const mapped: Track[] = rawTracks.map((item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }) => {
             const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
-            const cover = item.thumbnail || item.coverUrl || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : "/placeholder.svg");
+            const cover = item.thumbnail || item.coverUrl || getYouTubeArtworkUrl(vid, "max") || getDefaultArtworkFallbackUrl();
             return {
               id: vid || item.id || String(Math.random()),
               title: item.title,
@@ -292,7 +284,8 @@ export default function Home() {
               album: item.album || "",
               coverUrl:
                 item.thumbnail ||
-                `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+                getYouTubeArtworkUrl(item.videoId, "max") ||
+                getDefaultArtworkFallbackUrl(),
               duration: item.duration || 180,
               youtubeId: item.videoId,
             });
@@ -307,29 +300,6 @@ export default function Home() {
       cancelled = true;
     };
   }, [recentlyPlayed, likedTracks]);
-
-  // Bridge events from TrackRow: search navigation and "Create new playlist".
-  useEffect(() => {
-    const handleSearch = (event: Event) => {
-      const detail = (event as CustomEvent<{ query?: string }>).detail;
-      if (!detail?.query?.trim()) return;
-      setSearchQuery(detail.query);
-      setCurrentView("search");
-    };
-
-    const handleCreatePlaylist = (event: Event) => {
-      const detail = (event as CustomEvent<{ track?: Track }>).detail;
-      setPendingPlaylistTrack(detail?.track ?? null);
-      setIsCreatePlaylistOpen(true);
-    };
-
-    window.addEventListener("shubhu:search", handleSearch);
-    window.addEventListener("shubhu:create-playlist", handleCreatePlaylist);
-    return () => {
-      window.removeEventListener("shubhu:search", handleSearch);
-      window.removeEventListener("shubhu:create-playlist", handleCreatePlaylist);
-    };
-  }, []);
 
   useEffect(() => {
     if (!shareNotice) return;
@@ -356,6 +326,8 @@ export default function Home() {
           const rawTracks: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }[] = Array.isArray(data)
             ? data
             : data.tracks || [];
+          const hasVideoId = (item: { videoId?: string; id?: string }) =>
+            Boolean(item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id)));
           const toTrack = (item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }): Track => {
             const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
             return {
@@ -363,13 +335,13 @@ export default function Home() {
               title: item.title,
               artist: item.artist,
               album: item.album || "",
-              coverUrl: item.thumbnail || item.coverUrl || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : "/placeholder.svg"),
+              coverUrl: item.thumbnail || item.coverUrl || getYouTubeArtworkUrl(vid, "max") || getDefaultArtworkFallbackUrl(),
               duration: item.duration || 180,
               youtubeId: vid,
               artistId: item.artistId,
             };
           };
-          const mappedTracks: Track[] = rawTracks.map(toTrack);
+          const mappedTracks: Track[] = rawTracks.filter(hasVideoId).map(toTrack);
           setSearchResults(mappedTracks);
           if (Array.isArray(data)) {
             setSearchArtists([]);
@@ -378,7 +350,7 @@ export default function Home() {
             setSearchTopResult(null);
           } else {
             setSearchTopResult(
-              data.topResult ? toTrack(data.topResult) : null,
+              data.topResult && hasVideoId(data.topResult) ? toTrack(data.topResult) : mappedTracks[0] || null,
             );
             setSearchArtists(
               (data.artists || []).map((artist: { name: string; thumbnail?: string; browseId?: string }) => ({
@@ -580,35 +552,9 @@ export default function Home() {
   }, [prefersReducedMotion, carouselTabVisible, carouselHovered, carouselCount, carouselIndex, carouselResetKey]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#08090a] text-white shubhu-radial-bg">
-      {/* 1. Left Sidebar */}
-      <Sidebar
-        currentView={currentView}
-        onSelectView={(view) => {
-          setCurrentView(view);
-          if (view === "search") {
-            // Keep existing query or leave ready
-          }
-        }}
-        onOpenProfile={() => setIsProfileOpen(true)}
-        onOpenCreatePlaylist={() => setIsCreatePlaylistOpen(true)}
-        onOpenSettings={() => router.push("/settings")}
-      />
-
-      {/* 2. Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent">
-        <Navbar
-          searchQuery={searchQuery}
-          onSearchChange={(q) => {
-            setSearchQuery(q);
-            if (currentView !== "search") setCurrentView("search");
-          }}
-          showSearch={currentView === "search"}
-          onOpenProfile={() => setIsProfileOpen(true)}
-        />
-
-        {/* Scrollable Viewport */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
+    <>
+      {/* Scrollable Viewport */}
+      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           {/* ===================== HOME VIEW ===================== */}
           {currentView === "home" && (
             <div className="space-y-8 animate-in fade-in duration-200">
@@ -655,10 +601,10 @@ export default function Home() {
 
                   return (
                     <div
-                      className="mb-8 relative overflow-hidden rounded-[28px] border border-white/[0.06] shadow-2xl"
+                      className="mb-8 relative overflow-hidden rounded-[28px] border border-white/[0.06] shadow-2xl theme-dark-surface"
                       style={{
                         background:
-                          "radial-gradient(120% 130% at 50% 115%, rgba(76, 29, 149, 0.38) 0%, rgba(17, 20, 31, 0.94) 55%, rgba(10, 12, 18, 0.99) 100%)",
+                          "radial-gradient(120% 130% at 50% 115%, var(--carousel-glow) 0%, var(--carousel-base) 55%, var(--carousel-base) 100%)",
                       }}
                       onMouseEnter={() => setCarouselHovered(true)}
                       onMouseLeave={() => setCarouselHovered(false)}
@@ -670,7 +616,7 @@ export default function Home() {
                             key={`ambient-${track.id}`}
                             className="absolute inset-0"
                             style={{
-                              backgroundImage: track.coverUrl ? `url("${track.coverUrl}")` : undefined,
+                              backgroundImage: track.coverUrl ? `url("${getTrackArtworkUrl(track, "max")}")` : undefined,
                               backgroundSize: "140% 140%",
                               backgroundPosition: "center",
                               filter: "blur(70px) saturate(1.4)",
@@ -687,7 +633,7 @@ export default function Home() {
                         className="absolute inset-0 pointer-events-none"
                         style={{
                           background:
-                            "linear-gradient(180deg, rgba(8, 10, 16, 0.82) 0%, rgba(8, 10, 16, 0.52) 42%, rgba(8, 10, 16, 0.9) 100%)",
+                            "linear-gradient(180deg, var(--carousel-veil-top) 0%, var(--carousel-veil-mid) 42%, var(--carousel-veil-bottom) 100%)",
                         }}
                       />
                       {/* Faint purple bottom glow, blue right glow, subtle light behind the center */}
@@ -785,12 +731,12 @@ export default function Home() {
                                     style={{ borderRadius: 28 }}
                                   >
                                     <img
-                                      src={track.coverUrl || "/placeholder.svg"}
+                                      src={getTrackArtworkUrl(track, "max")}
                                       alt={track.title}
                                       crossOrigin="anonymous"
                                       referrerPolicy="no-referrer"
                                       onError={(e) => {
-                                        e.currentTarget.src = "/placeholder.svg";
+                                        e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                                       }}
                                       className="w-full h-full object-cover"
                                     />
@@ -824,7 +770,7 @@ export default function Home() {
                                             restartCarouselTimer();
                                             playTrack(track, carouselTracks);
                                           }}
-                                          className="absolute bottom-[18px] right-[18px] z-20 w-[52px] h-[52px] rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                                          className="absolute bottom-[18px] right-[18px] z-20 w-[52px] h-[52px] rounded-full bg-emerald-500 hover:bg-[var(--theme-accent-strong)] text-black flex items-center justify-center shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                                           title="Play"
                                         >
                                           <Play className="w-5 h-5 fill-black ml-0.5" />
@@ -935,12 +881,12 @@ export default function Home() {
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
-                              src={track.coverUrl || "/placeholder.svg"}
+                              src={getTrackArtworkUrl(track, "max")}
                               alt={track.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                               }}
                               className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
@@ -980,12 +926,12 @@ export default function Home() {
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
-                              src={track.coverUrl || "/placeholder.svg"}
+                              src={getTrackArtworkUrl(track, "max")}
                               alt={track.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                               }}
                               className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
@@ -1032,15 +978,12 @@ export default function Home() {
                         >
                           <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                             <img
-                              src={
-                                track.coverUrl ||
-                                (track.youtubeId ? `https://i.ytimg.com/vi/${track.youtubeId}/hqdefault.jpg` : "/placeholder.svg")
-                              }
+                              src={getTrackArtworkUrl(track, "max")}
                               alt={track.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                               }}
                               className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                             />
@@ -1073,7 +1016,7 @@ export default function Home() {
                           crossOrigin="anonymous"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
-                            e.currentTarget.src = "/placeholder.svg";
+                            e.currentTarget.src = getDefaultArtworkFallbackUrl();
                           }}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 shadow-md"
                         />
@@ -1141,7 +1084,7 @@ export default function Home() {
                             crossOrigin="anonymous"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg";
+                              e.currentTarget.src = getDefaultArtworkFallbackUrl();
                             }}
                             className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                           />
@@ -1300,12 +1243,12 @@ export default function Home() {
                           </p>
                           <div className="relative w-40 h-40 sm:w-44 sm:h-44 rounded-2xl overflow-hidden shadow-2xl mb-5 bg-neutral-800">
                             <img
-                              src={topResult.coverUrl || "/placeholder.svg"}
+                              src={getTrackArtworkUrl(topResult, "max")}
                               alt={topResult.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
+                                e.currentTarget.src = getTrackArtworkFallbackUrl(topResult, "hq");
                               }}
                               className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                             />
@@ -1338,7 +1281,7 @@ export default function Home() {
                           Songs
                         </p>
                         {top5Songs.map((track, i) => (
-                          <TrackRow key={track.id} track={track} index={i} queue={top5Songs} />
+                          <TrackRow key={track.id} track={track} index={i} queue={top5Songs} wrapText />
                         ))}
                       </div>
                     </div>
@@ -1363,7 +1306,7 @@ export default function Home() {
                                   crossOrigin="anonymous"
                                   referrerPolicy="no-referrer"
                                   onError={(e) => {
-                                    e.currentTarget.src = "/placeholder.svg";
+                                    e.currentTarget.src = getDefaultArtworkFallbackUrl();
                                   }}
                                   className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                                 />
@@ -1399,6 +1342,7 @@ export default function Home() {
                                 }
                               }}
                               className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 text-center border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${artist.browseId ? "cursor-pointer" : "cursor-default"}`}
+                              title={artist.name}
                             >
                               <img
                                 src={artist.image}
@@ -1406,7 +1350,7 @@ export default function Home() {
                                 crossOrigin="anonymous"
                                 referrerPolicy="no-referrer"
                                 onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg";
+                                  e.currentTarget.src = getDefaultArtworkFallbackUrl();
                                 }}
                                 className="w-28 h-28 rounded-full object-cover mx-auto mb-3 shadow-lg group-hover:scale-[1.04] transition-transform duration-300"
                               />
@@ -1434,6 +1378,7 @@ export default function Home() {
                                 }
                               }}
                               className={`shrink-0 w-40 p-3 bg-neutral-900/50 hover:bg-neutral-800/70 rounded-2xl group transition-all duration-300 border border-white/5 hover:border-white/10 shadow-sm hover:shadow-xl hover:-translate-y-0.5 ${album.browseId ? "cursor-pointer" : "cursor-default"}`}
+                              title={album.title}
                             >
                               <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-3 bg-neutral-800">
                                 <img
@@ -1442,7 +1387,7 @@ export default function Home() {
                                   crossOrigin="anonymous"
                                   referrerPolicy="no-referrer"
                                   onError={(e) => {
-                                    e.currentTarget.src = "/placeholder.svg";
+                                    e.currentTarget.src = getDefaultArtworkFallbackUrl();
                                   }}
                                   className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
                                 />
@@ -1468,6 +1413,7 @@ export default function Home() {
                               track={track}
                               index={i}
                               showSimilarBadge={true}
+                              wrapText
                               onPlayOverride={() => {
                                 // FIX 8: All Results song click -> plays song and auto-builds similar queue (not sequential)
                                 playTrack(track);
@@ -1508,7 +1454,7 @@ export default function Home() {
                         <button
                           key={mood.name}
                           onClick={() => setSearchQuery(mood.query)}
-                          className={`p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
+                          className={`theme-dark-surface p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
                         >
                           <span className="font-display font-bold text-lg text-white block">
                             {mood.name}
@@ -1535,7 +1481,7 @@ export default function Home() {
                           <div
                             key={pl.id}
                             onClick={() => router.push(`/playlist/${pl.playlistId}`)}
-                            className={`aspect-square p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
+                            className={`theme-dark-surface aspect-square p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
                           >
                             <span className="font-bold text-lg text-white leading-tight">
                               {pl.name}
@@ -1546,7 +1492,7 @@ export default function Home() {
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
-                                e.currentTarget.src = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format";
+                                e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
                               className="w-16 h-16 rounded-md object-cover absolute -bottom-2 -right-2 shadow-2xl rotate-15 group-hover:rotate-0 group-hover:scale-110 transition-all duration-300"
                             />
@@ -1568,19 +1514,19 @@ export default function Home() {
                 style={{
                   background: `linear-gradient(
                     180deg,
-                    #450af5 0%,
-                    #8e8ee5 40%,
-                    #121212 100%
+                    var(--theme-accent-strong) 0%,
+                    var(--theme-accent) 40%,
+                    var(--color-neutral-950) 100%
                   )`,
                 }}
-                className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl transition-all"
+                className="theme-dark-surface flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl transition-all"
               >
                 <div className="w-40 h-40 sm:w-[200px] sm:h-[200px] rounded-lg bg-white/20 backdrop-blur-md shadow-2xl flex items-center justify-center shrink-0 border border-white/20">
                   <Heart className="w-24 h-24 text-white fill-white" />
                 </div>
 
                 <div className="text-center sm:text-left flex-1 min-w-0">
-                  <p className="text-xs uppercase font-bold tracking-wider text-purple-200">PLAYLIST</p>
+                  <p className="text-xs uppercase font-bold tracking-wider text-emerald-200">PLAYLIST</p>
                   <h1 className="text-4xl sm:text-5xl font-black text-white mt-1 mb-3 tracking-tight">Liked Songs</h1>
                   <p className="text-sm text-neutral-300 flex items-center justify-center sm:justify-start gap-2">
                     <span className="font-semibold text-white">{user?.username || "You"}</span>
@@ -1626,7 +1572,7 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-extrabold text-white tracking-tight">Your Library</h1>
                 <button
-                  onClick={() => setIsCreatePlaylistOpen(true)}
+                  onClick={() => openCreatePlaylist(null)}
                   className="flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-2 rounded-full text-xs font-semibold border border-neutral-800 transition-colors cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
@@ -1707,7 +1653,7 @@ export default function Home() {
                           crossOrigin="anonymous"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
-                            e.currentTarget.src = "/placeholder.svg";
+                            e.currentTarget.src = getDefaultArtworkFallbackUrl();
                           }}
                           className="w-20 h-20 rounded-full object-cover mx-auto mb-3 shadow-lg group-hover:scale-[1.04] transition-transform duration-300"
                         />
@@ -1733,10 +1679,10 @@ export default function Home() {
                     180deg,
                     rgba(${playlistDominantColor}, 0.8) 0%,
                     rgba(${playlistDominantColor}, 0.3) 60%,
-                    #121212 100%
+                    var(--color-neutral-950) 100%
                   )`,
                 }}
-                className="relative flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl transition-colors duration-500"
+                className="theme-dark-surface relative flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl transition-colors duration-500"
               >
                 <div className="w-40 h-40 sm:w-[200px] sm:h-[200px] rounded-lg overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
                   <PlaylistCollage
@@ -1876,40 +1822,9 @@ export default function Home() {
               </div>
             </div>
           )}
-        </main>
-      </div>
+      </main>
 
-      {/* Right "Now Playing" Panel */}
-      <RightPanel
-        isOpen={showRightPanel}
-        onClose={() => setShowRightPanel(false)}
-      />
-
-      {/* 3. Bottom Player Bar */}
-      <Player />
-
-      {/* 4. Modals */}
-      <UserProfileModal
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-      />
-
-      <CreatePlaylistModal
-        key={`create-${isCreatePlaylistOpen}`}
-        isOpen={isCreatePlaylistOpen}
-        onClose={() => {
-          setIsCreatePlaylistOpen(false);
-          setPendingPlaylistTrack(null);
-        }}
-        onCreated={(id) => {
-          if (pendingPlaylistTrack) {
-            addToPlaylist(id, pendingPlaylistTrack);
-            setPendingPlaylistTrack(null);
-          }
-          setCurrentView(`playlist:${id}`);
-        }}
-      />
-
+      {/* Playlist edit modal stays with the Home view it belongs to. */}
       <CreatePlaylistModal
         key={`edit-${isEditPlaylistOpen}-${activeCustomPlaylist?.id ?? ""}`}
         isOpen={isEditPlaylistOpen}
@@ -1917,6 +1832,6 @@ export default function Home() {
         onClose={() => setIsEditPlaylistOpen(false)}
         onUpdated={() => setIsEditPlaylistOpen(false)}
       />
-    </div>
+    </>
   );
 }

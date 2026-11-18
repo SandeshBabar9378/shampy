@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Settings, Music2 } from "lucide-react";
-import Link from "next/link";
+import { Search, Music2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
 interface NavbarProps {
@@ -10,10 +9,9 @@ interface NavbarProps {
   onSearchChange: (q: string) => void;
   showSearch: boolean;
   onOpenProfile: () => void;
-  onOpenSettings?: () => void;
 }
 
-export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile, onOpenSettings }: NavbarProps) {
+export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile }: NavbarProps) {
   const { user } = usePlayer();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -22,7 +20,7 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
   };
 
   return (
-    <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/60 backdrop-blur-xl border-b border-white/5">
+    <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
       {/* Mobile: Top left Shubhu logo icon */}
       <div className="sm:hidden flex items-center gap-2 shrink-0">
         <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg shadow-emerald-500/20 shrink-0">
@@ -68,7 +66,7 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
         {/* Desktop: avatar + username button */}
         <button
           onClick={onOpenProfile}
-          className="hidden sm:flex items-center gap-2.5 bg-black/60 hover:bg-neutral-900 border border-neutral-800/80 pl-2 pr-3 py-1.5 rounded-full transition-colors group cursor-pointer"
+          className="hidden sm:flex items-center gap-2.5 bg-transparent hover:bg-neutral-900/40 border border-transparent hover:border-white/5 pl-1 pr-2 py-1.5 rounded-full transition-colors group cursor-pointer"
         >
           <img
             src={user?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=user"}
@@ -80,43 +78,18 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
           </span>
         </button>
 
-        {/* Mobile: On search page -> show circular search button (submits search). On other pages -> show settings gear */}
-        {showSearch ? (
+        {/* Mobile: On search page -> show circular search button (submits search).
+            On other pages the right side is intentionally empty; Settings now
+            lives in the bottom navigation. */}
+        {showSearch && (
           <button
             type="button"
             onClick={() => handleSearchSubmit()}
-            className="sm:hidden rounded-full bg-emerald-500 text-black p-2 hover:bg-emerald-400 transition-colors cursor-pointer shrink-0"
+            className="sm:hidden rounded-full bg-emerald-500 text-black p-2 hover:bg-[var(--theme-accent-strong)] transition-colors cursor-pointer shrink-0"
             title="Search"
           >
             <Search className="w-4 h-4 fill-black" />
           </button>
-        ) : (
-          <Link
-            href="/settings"
-            className="sm:hidden rounded-full border border-neutral-600 p-1.5 text-neutral-400 hover:text-white hover:border-neutral-400 transition-colors cursor-pointer shrink-0"
-            title="Settings"
-          >
-            <Settings className="w-5 h-5" />
-          </Link>
-        )}
-
-        {/* Desktop Settings icon */}
-        {onOpenSettings ? (
-          <button
-            onClick={onOpenSettings}
-            className="hidden sm:flex rounded-full border border-neutral-600 p-1.5 text-neutral-400 hover:text-white hover:border-neutral-400 transition-colors cursor-pointer"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        ) : (
-          <Link
-            href="/settings"
-            className="hidden sm:flex rounded-full border border-neutral-600 p-1.5 text-neutral-400 hover:text-white hover:border-neutral-400 transition-colors cursor-pointer"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </Link>
         )}
       </div>
     </header>
