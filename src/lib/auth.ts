@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 import { query, queryOne, withTransaction } from "@/lib/db";
+import { mergeGuestRecommenderData } from "@/lib/recommender/store";
 
 export const SESSION_COOKIE = "shubhu_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 180; // 180 days
@@ -257,6 +258,10 @@ export async function mergeGuestIntoAccount(guestId: unknown, userId: string): P
         [targetId, pl.id],
       );
     }
+
+    // Recommender memory: events, aggregates and both taste profiles follow the
+    // guest into the account. Idempotent via merged_guests above.
+    await mergeGuestRecommenderData(tx, guestId, userId);
 
     return true;
   });

@@ -50,6 +50,33 @@ export interface AuthResult {
   error?: string;
 }
 
+/** One open play, so end/skip/manual-next can be told apart. Never rendered. */
+interface PlayContext {
+  songId: string;
+  instanceId: string;
+  startedAt: number;
+  lastPosition: number;
+  /** Time actually heard (seeks do not count), used to classify a skip. */
+  listenedSeconds: number;
+  /** Position at the previous tick, so a seek jump is not mistaken for play time. */
+  lastTickPosition: number;
+  duration: number;
+  seeked: boolean;
+  track: Track;
+}
+
+/** A listening signal on its way to /api/activity. */
+interface ActivityEvent {
+  kind: "play" | "complete" | "skip" | "like" | "unlike" | "playlist_add";
+  songId: string;
+  instanceId?: string;
+  positionSeconds?: number;
+  durationSeconds?: number;
+  replay?: boolean;
+  negative?: boolean;
+  track?: Track;
+}
+
 /** Wraps an <audio> element in the same interface as the YouTube player, so
  *  downloaded songs play through the exact same transport code. */
 function createAudioPlayer(audio: HTMLAudioElement): YTPlayerInstance {
@@ -291,6 +318,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const pendingWritesRef = useRef(0);      // in-flight local changes the server hasn't seen yet
   const userIdRef = useRef<string | null>(null);
 
+  // ── Recommendation signals ────────────────────────────────────────────────
+  // Handlers below record what happened; nothing here renders, and playback /
+  // queue state stays exactly as it is above. Sends are best-effort.
+  const playCtxRef = useRef<PlayContext | null>(null);
+  const closePlayRef = useRef<(kind: "complete" | "skip", negative?: boolean) => void>(() => {});
+  const sessionIdRef = useRef<string>("");
+  const sessionPlayedRef = useRef<Set<string>>(new Set());
+  const activityBufferRef = useRef<ActivityEvent[]>([]);
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // YouTube player reference. `ytPlayerRef` is the ACTIVE engine: either the
   // real YouTube player or the <audio> adapter used for downloaded songs.
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
@@ -387,6 +424,134 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       pendingWritesRef.current--;
     }
   };
+
+  /** Sends buffered listening signals. Never throws, never blocks playback. */
+  const flushActivity = () => {
+    if (activityTimerRef.current) {
+      clearTimeout(activityTimerRef.current);
+      activityTimerRef.current = null;
+    }
+    const events = activityBufferRef.current;
+    if (events.length === 0) return;
+    activityBufferRef.current = [];
+    const userId = userIdRef.current;
+    if (!userId) return;
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, sessionId: sessionIdRef.current, events }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
+  const queueActivity = (event: ActivityEvent) => {
+    if (!userIdRef.current) return;
+    activityBufferRef.current.push(event);
+    if (activityBufferRef.current.length >= 20) {
+      flushActivity();
+      return;
+    }
+    if (activityTimerRef.current) return;
+    activityTimerRef.current = setTimeout(flushActivity, 1500);
+  };
+
+  /** Opens a play instance. Resuming the same song keeps the open instance. */
+  const startPlayContext = (track: Track) => {
+    const open = playCtxRef.current;
+    if (open && open.songId === track.id) return;
+    if (open) closePlay("skip");
+
+    const instanceId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const replay = sessionPlayedRef.current.has(track.id);
+    sessionPlayedRef.current.add(track.id);
+    playCtxRef.current = {
+      songId: track.id,
+      instanceId,
+      startedAt: Date.now(),
+      lastPosition: 0,
+      listenedSeconds: 0,
+      lastTickPosition: 0,
+      duration: track.duration || 0,
+      seeked: false,
+      track,
+    };
+    queueActivity({
+      kind: "play",
+      songId: track.id,
+      instanceId,
+      positionSeconds: 0,
+      durationSeconds: track.duration || 0,
+      replay,
+      track,
+    });
+  };
+
+  /** Closes the open play exactly once; a completed or skipped play. */
+  const closePlay = (kind: "complete" | "skip", negative = false) => {
+    const ctx = playCtxRef.current;
+    if (!ctx) return;
+    playCtxRef.current = null;
+    // A skip is classified by how much was genuinely heard, so seeking to the
+    // end does not turn an early bail-out into a "late" (positive) skip.
+    const heard =
+      kind === "skip"
+        ? Math.max(0, Math.min(ctx.duration || Number.POSITIVE_INFINITY, ctx.listenedSeconds))
+        : ctx.lastPosition;
+    queueActivity({
+      kind,
+      songId: ctx.songId,
+      instanceId: ctx.instanceId,
+      positionSeconds: Math.round(heard),
+      durationSeconds: ctx.duration || ctx.track.duration || 0,
+      negative,
+      track: ctx.track,
+    });
+  };
+
+  // Per-tab session id, used to dedupe instances and to keep Home stable.
+  useEffect(() => {
+    closePlayRef.current = closePlay;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let sessionId: string | null = null;
+    try {
+      sessionId = sessionStorage.getItem("shubhu_session_id");
+    } catch {
+      sessionId = null;
+    }
+    if (!sessionId) {
+      sessionId = `s_${Math.random().toString(36).slice(2, 10)}`;
+      try {
+        sessionStorage.setItem("shubhu_session_id", sessionId);
+      } catch {}
+    }
+    sessionIdRef.current = sessionId;
+
+    const flush = () => flushActivity();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    // Leaving the page ends the open play: record what was heard instead of
+    // dropping the signal, then flush in one keepalive request.
+    const onPageHide = () => {
+      if (playCtxRef.current) closePlayRef.current("skip");
+      flush();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, []);
+
+  // Keep the identity ref in step with the resolved user (guests included).
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   /** Uploads data that only ever lived in this browser, once per identity. */
   const importLocalOnce = async (userId: string): Promise<boolean> => {
@@ -584,13 +749,49 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       ? track.id
       : null;
 
-    if (targetVideoId) {
+    // Personalized seeds first. Same queue, same append path below; on any
+    // problem this falls straight through to /api/next as before.
+    const recommendUserId = userIdRef.current;
+    if (recommendUserId && targetVideoId) {
+      try {
+        const queueIds = queueRef.current
+          .map((t) => t.id)
+          .filter(isValidVideoId)
+          .slice(0, 40)
+          .join(",");
+        const params = new URLSearchParams({
+          userId: recommendUserId,
+          section: "queue",
+          limit: "12",
+          seedVideoId: targetVideoId,
+          session: sessionIdRef.current,
+          queueIds,
+        });
+        const res = await fetch(`/api/recommend?${params.toString()}`);
+        if (res.ok) {
+          const data = (await res.json()) as { queueSeeds?: Track[] };
+          if (Array.isArray(data?.queueSeeds)) {
+            nextTracks = data.queueSeeds.filter(
+              (item) =>
+                Boolean(item) &&
+                (isValidVideoId(item.youtubeId) || isValidVideoId(item.id)) &&
+                !existingIds.has(item.id)
+            );
+          }
+        }
+      } catch {
+        /* fall through to /api/next */
+      }
+    }
+
+    if (nextTracks.length < 5 && targetVideoId) {
       try {
         const res = await fetch(`/api/next?videoId=${encodeURIComponent(targetVideoId)}`);
         if (res.ok) {
           const apiNext = await res.json();
           if (Array.isArray(apiNext) && apiNext.length > 0) {
-            nextTracks = apiNext
+            const knownIds = new Set([...existingIds, ...nextTracks.map((t) => t.id)]);
+            const mapped = apiNext
               .filter((item: { videoId?: string }) => isValidVideoId(item.videoId) && item.videoId !== targetVideoId)
               .map((item: { videoId: string; title: string; artist: string; album?: string; thumbnail?: string; duration?: number }) => ({
                 id: item.videoId,
@@ -601,7 +802,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 duration: item.duration || 180,
                 youtubeId: item.videoId,
                 audioUrl: "",
-              }));
+              }))
+              .filter((item: Track) => !knownIds.has(item.id));
+            nextTracks = [...nextTracks, ...mapped];
           }
         }
       } catch (err) {
@@ -629,6 +832,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleSongEnd = async () => {
+    // The track genuinely finished: this is a completion, not a skip.
+    closePlay("complete");
+
     // Sleep timer: "End of song" pauses here and never advances the queue.
     if (sleepAtEndOfSongRef.current) {
       sleepAtEndOfSongRef.current = false;
@@ -811,6 +1017,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             setCurrentTime(time);
             setDuration(dur);
 
+            // Position the play instance will be closed with.
+            if (playCtxRef.current) {
+              const ctx = playCtxRef.current;
+              const delta = time - ctx.lastTickPosition;
+              // A normal 250ms tick advances by a fraction of a second; a seek
+              // (or a resumed tab) produces a jump that must not count as time
+              // genuinely listened to.
+              if (delta > 0 && delta < 2) ctx.listenedSeconds += delta;
+              ctx.lastTickPosition = time;
+              ctx.lastPosition = time;
+              if (dur > 0) ctx.duration = dur;
+            }
+
             // Persist position every 5s while playing
             if (currentTrackRef.current && typeof window !== "undefined") {
               lsSet(
@@ -920,6 +1139,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       console.warn(`[Player] Invalid or missing videoId for song "${track.title}" (id: ${track.id}, youtubeId: ${track.youtubeId}).`);
       return;
     }
+
+    // Signal bookkeeping only: closing the previous play and opening this one
+    // changes no playback or queue state.
+    startPlayContext(track);
 
     setCurrentTrack(track);
     setCurrentTime(0);
@@ -1038,6 +1261,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const nextTrack = async () => {
+    // Advancing while a track is open is a skip (the player decides otherwise
+    // on a natural end, which routes through handleSongEnd instead).
+    closePlay("skip");
     if (queue.length === 0) return;
     let nextIdx = isShuffle
       ? Math.floor(Math.random() * queue.length)
@@ -1067,6 +1293,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const prevTrack = () => {
+    // Going back is both a skip and an explicit negative signal.
+    closePlay("skip", true);
     if (queue.length === 0) return;
     const prevIdx = currentIndex - 1 < 0 ? queue.length - 1 : currentIndex - 1;
     setCurrentIndex(prevIdx);
@@ -1078,6 +1306,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (player?.seekTo) {
       player.seekTo(seconds, true);
       setCurrentTime(seconds);
+      if (playCtxRef.current) {
+        playCtxRef.current.lastPosition = seconds;
+        // Do not credit the jump as listening time.
+        playCtxRef.current.lastTickPosition = seconds;
+        playCtxRef.current.seeked = true;
+      }
     }
   };
 
@@ -1125,6 +1359,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Optimistic UI
     setLikedSongIds(newLikes);
     lsSet("shubhu_liked_ids", JSON.stringify([...newLikes]));
+    // An unlike is a negative signal; a like is a strong positive one.
+    queueActivity({ kind: isLiked ? "unlike" : "like", songId: track.id, track });
 
     // Sync full liked songs array to localStorage
     if (typeof window !== "undefined") {
@@ -1212,6 +1448,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Add track to playlist ──────────────────────────────────────────────────
   const addToPlaylist = async (playlistId: string, track: Track) => {
+    const alreadyAdded = Boolean(
+      playlists.find((pl) => pl.id === playlistId)?.tracks?.some((t) => t.id === track.id)
+    );
     const updated = playlists.map((pl) => {
       if (pl.id !== playlistId) return pl;
       const exists = pl.tracks?.some((t) => t.id === track.id);
@@ -1221,6 +1460,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPlaylists(updated);
     lsSet("shubhu_playlists", JSON.stringify(updated));
     lsSet("playlists", JSON.stringify(updated));
+    if (!alreadyAdded) {
+      queueActivity({ kind: "playlist_add", songId: track.id, track });
+    }
 
     if (user?.id) {
       try {

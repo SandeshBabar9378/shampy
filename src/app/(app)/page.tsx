@@ -108,6 +108,8 @@ export default function Home() {
 
   const [homeTracks, setHomeTracks] = useState<Track[]>(CURATED_TRACKS);
   const [recommendations, setRecommendations] = useState<Track[]>([]);
+  const [forYou, setForYou] = useState<Track[]>([]);
+  const [mostPlayed, setMostPlayed] = useState<Track[]>([]);
   const [likedTracks, setLikedTracks] = useState<Track[]>([]);
 
   const [isEditPlaylistOpen, setIsEditPlaylistOpen] = useState(false);
@@ -178,28 +180,30 @@ export default function Home() {
       .catch((e) => console.error(e));
   }, []);
 
-  // Fetch Community Playlists for Home (based on recentlyPlayed artist/genre or trending default)
+  // Fetch Community Playlists for Home. Aggregates several recent/liked tracks
+  // so one song cannot decide the whole row; falls back to the broad default.
   useEffect(() => {
     let query = "hindi playlist";
     try {
       const raw = localStorage.getItem("recentlyPlayed");
-      if (raw) {
-        const recents: Track[] = JSON.parse(raw);
-        if (Array.isArray(recents) && recents.length > 0) {
-          const artistCounts = new Map<string, number>();
-          recents.forEach((t) => {
-            if (t.artist && t.artist !== "Unknown Artist") {
-              artistCounts.set(t.artist, (artistCounts.get(t.artist) || 0) + 1);
-            }
-          });
-          if (artistCounts.size > 0) {
-            const topArtist = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-            query = `${topArtist} playlist`;
-          } else if (recents[0]?.genre) {
-            query = `${recents[0].genre} playlist`;
-          }
+      const recents: Track[] = raw ? JSON.parse(raw) : [];
+      const history = [
+        ...(Array.isArray(likedTracks) ? likedTracks : []),
+        ...(Array.isArray(recents) ? recents : []),
+      ];
+      const artistCounts = new Map<string, number>();
+      const genreCounts = new Map<string, number>();
+      history.forEach((t) => {
+        if (t.artist && t.artist !== "Unknown Artist") {
+          artistCounts.set(t.artist, (artistCounts.get(t.artist) || 0) + 1);
         }
-      }
+        if (t.genre) genreCounts.set(t.genre, (genreCounts.get(t.genre) || 0) + 1);
+      });
+      const topArtist = Array.from(artistCounts.entries()).sort((a, b) => b[1] - a[1])[0];
+      const topGenre = Array.from(genreCounts.entries()).sort((a, b) => b[1] - a[1])[0];
+      // Two or more tracks pointing at the same artist is a real signal.
+      if (topArtist && topArtist[1] >= 2) query = `${topArtist[0]} playlist`;
+      else if (topGenre && topGenre[1] >= 2) query = `${topGenre[0]} playlist`;
     } catch {}
 
     fetch(`/api/search?q=${encodeURIComponent(query)}`)
@@ -211,7 +215,7 @@ export default function Home() {
         }
       })
       .catch(() => {});
-  }, [recentlyPlayed]);
+  }, [recentlyPlayed, likedTracks]);
 
   // Fetch full liked songs when liked view is opened
   useEffect(() => {
@@ -242,9 +246,17 @@ export default function Home() {
     }
   }, [currentView, user?.id, likedSongIds]);
 
-  // Recommended For You: seed from the last 3 liked or recently played songs.
-  // Each seed asks /api/next for its radio results; merge and dedupe them.
+  // Recommended For You. The server ranks a per-user slate when it can; the
+  // previous local + /api/next build stays as the exact fallback, and the
+  // section's visibility still depends only on `recommendations.length`.
+  const recommendSessionRef = useRef<string>("");
+
   useEffect(() => {
+    // Stable per page load, so the server can keep one slate for this session.
+    if (!recommendSessionRef.current) {
+      recommendSessionRef.current = `rec_${Math.random().toString(36).slice(2, 10)}`;
+    }
+
     const seeds: { track: Track; videoId: string }[] = [];
     const seen = new Set<string>();
 
@@ -264,66 +276,143 @@ export default function Home() {
 
     let cancelled = false;
 
-    Promise.all(
-      seeds.map(async ({ videoId }) => {
-        try {
-          const res = await fetch(`/api/next?videoId=${encodeURIComponent(videoId)}`);
-          if (!res.ok) return [];
-          const data = await res.json();
-          return Array.isArray(data) ? data : [];
-        } catch {
-          return [];
-        }
-      }),
-    )
-      .then((pages) => {
-        if (cancelled) return;
-
-        const seedIds = new Set(seeds.map(({ track }) => track.id));
-        const merged = new Map<string, Track>();
-
-        for (const page of pages) {
-          const items = page as {
-            videoId?: string;
-            title?: string;
-            artist?: string;
-            album?: string;
-            thumbnail?: string;
-            duration?: number;
-          }[];
-
-          for (const item of items) {
-            if (
-              !item?.videoId ||
-              !item.title ||
-              seedIds.has(item.videoId) ||
-              merged.has(item.videoId)
-            ) {
-              continue;
-            }
-            merged.set(item.videoId, {
-              id: item.videoId,
-              title: item.title,
-              artist: item.artist || "Unknown Artist",
-              album: item.album || "",
-              coverUrl:
-                item.thumbnail ||
-                getYouTubeArtworkUrl(item.videoId, "max") ||
-                getDefaultArtworkFallbackUrl(),
-              duration: item.duration || 180,
-              youtubeId: item.videoId,
-            });
+    const buildFromRadio = () => {
+      Promise.all(
+        seeds.map(async ({ videoId }) => {
+          try {
+            const res = await fetch(`/api/next?videoId=${encodeURIComponent(videoId)}`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
+          } catch {
+            return [];
           }
-        }
+        }),
+      )
+        .then((pages) => {
+          if (cancelled) return;
 
-        setRecommendations(Array.from(merged.values()).slice(0, 20));
-      })
-      .catch((e) => console.error("Error building recommendations:", e));
+          const seedIds = new Set(seeds.map(({ track }) => track.id));
+          const merged = new Map<string, Track>();
+
+          for (const page of pages) {
+            const items = page as {
+              videoId?: string;
+              title?: string;
+              artist?: string;
+              album?: string;
+              thumbnail?: string;
+              duration?: number;
+            }[];
+
+            for (const item of items) {
+              if (
+                !item?.videoId ||
+                !item.title ||
+                seedIds.has(item.videoId) ||
+                merged.has(item.videoId)
+              ) {
+                continue;
+              }
+              merged.set(item.videoId, {
+                id: item.videoId,
+                title: item.title,
+                artist: item.artist || "Unknown Artist",
+                album: item.album || "",
+                coverUrl:
+                  item.thumbnail ||
+                  getYouTubeArtworkUrl(item.videoId, "max") ||
+                  getDefaultArtworkFallbackUrl(),
+                duration: item.duration || 180,
+                youtubeId: item.videoId,
+              });
+            }
+          }
+
+          setRecommendations(Array.from(merged.values()).slice(0, 20));
+        })
+        .catch((e) => console.error("Error building recommendations:", e));
+    };
+
+    const userId = user?.id;
+    if (userId) {
+      const params = new URLSearchParams({
+        userId,
+        section: "recommended",
+        limit: "20",
+        session: recommendSessionRef.current,
+      });
+      fetch(`/api/recommend?${params.toString()}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: unknown) => {
+          if (cancelled) return;
+          const payload = data as { recommended?: Track[] } | null;
+          const ranked = payload?.recommended;
+          const playable = (Array.isArray(ranked) ? ranked : []).filter((track) => {
+            if (!track || !track.id) return false;
+            return Boolean(track.youtubeId && /^[A-Za-z0-9_-]{11}$/.test(track.youtubeId)) ||
+              /^[A-Za-z0-9_-]{11}$/.test(track.id);
+          });
+          if (playable.length === 0) {
+            buildFromRadio();
+            return;
+          }
+          setRecommendations(playable.slice(0, 20));
+        })
+        .catch(() => {
+          if (!cancelled) buildFromRadio();
+        });
+    } else {
+      buildFromRadio();
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [recentlyPlayed, likedTracks]);
+  }, [recentlyPlayed, likedTracks, user?.id]);
+
+  // Additional Home sources with a single source of truth each:
+  //   most  -> real play counts from song_stats
+  //   for-you -> overall-taste slate (no seed-track bias)
+  useEffect(() => {
+    const userId = user?.id;
+    let cancelled = false;
+
+    const fetchTracks = async (section: "most" | "for-you", limit: number) => {
+      const params = new URLSearchParams({
+        userId: userId ?? "",
+        section,
+        limit: String(limit),
+        session: recommendSessionRef.current,
+      });
+      const res = await fetch(`/api/recommend?${params.toString()}`);
+      if (!res.ok) return [] as Track[];
+      const data = (await res.json()) as { tracks?: Track[] } | null;
+      return Array.isArray(data?.tracks) ? data.tracks : [];
+    };
+
+    const run = async () => {
+      if (!userId) {
+        if (!cancelled) {
+          setForYou([]);
+          setMostPlayed([]);
+        }
+        return;
+      }
+      const [most, personal] = await Promise.all([fetchTracks("most", 8), fetchTracks("for-you", 10)]);
+      if (cancelled) return;
+      setMostPlayed(most);
+      setForYou(personal);
+    };
+
+    run().catch((err) => {
+      if (!cancelled) console.error("Error loading Home personalisation:", err);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!shareNotice) return;
@@ -502,6 +591,10 @@ export default function Home() {
       }
     }
 
+    // The engine's overall-taste slate (long-term + bounded mood) is a stronger
+    // source than local genre matching whenever it has real picks.
+    if (forYou.length > 0) madeForYou = forYou;
+
     // Prioritized playlists based on language
     const preferredNames = LANGUAGE_PLAYLIST_MAP[languagePreference] || LANGUAGE_PLAYLIST_MAP.Hindi;
     const prioritized = [...FEATURED_PLAYLISTS].sort((a, b) => {
@@ -518,12 +611,18 @@ export default function Home() {
       madeForYouTracks: madeForYou.slice(0, 10),
       prioritizedPlaylists: prioritized,
     };
-  }, [likedTracks, recentlyPlayed, languagePreference, homeTracks, recommendations]);
+  }, [likedTracks, recentlyPlayed, languagePreference, homeTracks, recommendations, forYou]);
 
   // Home data (the "All" feed — there is no mood filtering anymore).
   const displayHomeTracks = homeTracks;
   const displayPopularTracks = homeTracks.slice(0, 10);
-  const displayMostPlayed = recentlyPlayed.length > 0 ? recentlyPlayed.slice(0, 8) : homeTracks.slice(0, 8);
+  // Real play counts win over the 6-item localStorage recents list.
+  const displayMostPlayed =
+    mostPlayed.length > 0
+      ? mostPlayed.slice(0, 8)
+      : recentlyPlayed.length > 0
+        ? recentlyPlayed.slice(0, 8)
+        : homeTracks.slice(0, 8);
   const displayPlaylists = communityHomePlaylists;
 
   // Cinematic carousel: auto-advance, hover pause, tab visibility, reduced motion.
