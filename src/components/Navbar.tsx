@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Music2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
 interface NavbarProps {
@@ -24,9 +24,14 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
     <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
       {/* Mobile: Top left Shubhu logo icon */}
       <div className="sm:hidden flex items-center gap-2 shrink-0">
-        <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg shadow-emerald-500/20 shrink-0">
-          <Music2 className="w-4 h-4 fill-black" />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icons/shubhu-logo.png"
+          alt="Shubhu"
+          width={32}
+          height={32}
+          className="w-8 h-8 shrink-0 object-contain"
+        />
         {!showSearch && (
           <span className="font-display font-bold text-white text-lg tracking-tight">Shubhu</span>
         )}

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, Search, Library, Plus, Heart, Music2, ChevronLeft, ChevronRight, Settings, Download } from "lucide-react";
+import { Home, Search, Library, Plus, Heart, ChevronLeft, ChevronRight, Settings, Download } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { PlaylistCollage } from "./PlaylistCollage";
 import { DOWNLOADS_ENABLED } from "@/lib/features";
@@ -75,9 +75,14 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
         <div className="h-16 px-4 flex items-center justify-between shrink-0 border-b border-white/5">
           {!collapsed ? (
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg shadow-emerald-500/20 shrink-0">
-                <Music2 className="w-5 h-5 fill-black" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/shubhu-logo.png"
+                alt="Shubhu"
+                width={36}
+                height={36}
+                className="w-9 h-9 shrink-0 object-contain"
+              />
               <div>
                 <span className="font-display font-bold text-white text-lg tracking-tight block leading-tight">Shubhu</span>
                 <span className="text-[10px] text-emerald-400 font-mono tracking-wider block">MUSIC</span>
@@ -86,10 +91,17 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
           ) : (
             <button
               onClick={() => onSelectView("home")}
-              className="w-9 h-9 bg-emerald-500 rounded-xl flex items-center justify-center text-black shadow-lg shadow-emerald-500/20 mx-auto cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center mx-auto cursor-pointer"
               title="Shubhu"
             >
-              <Music2 className="w-5 h-5 fill-black" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/shubhu-logo.png"
+                alt="Shubhu"
+                width={36}
+                height={36}
+                className="w-full h-full object-contain"
+              />
             </button>
           )}
 

@@ -9,6 +9,17 @@ import {
   Smartphone,
   User,
   Fingerprint,
+  Settings as SettingsIcon,
+  Laptop,
+  Crown,
+  Copy,
+  Cloud,
+  Link2,
+  Save,
+  X,
+  Download,
+  Share,
+  PlusSquare,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,6 +27,7 @@ import { usePlayer, type ThemeId } from "@/context/PlayerContext";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
 import { AccountSection } from "@/components/AccountSection";
 import { InstallAppCard } from "@/components/InstallAppCard";
+import { promptInstall, useInstallState } from "@/lib/pwaInstall";
 
 const THEMES: { id: ThemeId; name: string; description: string; swatch: string }[] = [
   {
@@ -78,12 +90,49 @@ function SectionCard({ id, icon, title, description, action, children }: Section
   );
 }
 
+interface MobileCardProps {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
+}
+
+/** Glassmorphism card used only by the mobile Settings layout. */
+function MobileCard({ icon, title, subtitle, action, children }: MobileCardProps) {
+  return (
+    <section className="relative overflow-hidden rounded-[24px] border border-neutral-800/70 bg-neutral-950/60 p-4 shadow-[0_16px_40px_-24px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/5 backdrop-blur-xl">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.055),transparent_55%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl"
+      />
+      <div className="relative z-10 flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/25">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-[16px] font-semibold leading-tight tracking-tight text-white">{title}</h2>
+          {subtitle ? <p className="mt-1 text-[12px] leading-snug text-neutral-400">{subtitle}</p> : null}
+        </div>
+        {action ? <div className="shrink-0 self-center">{action}</div> : null}
+      </div>
+      {children ? <div className="relative z-10 mt-4">{children}</div> : null}
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { user, updateUser, theme, setTheme } = usePlayer();
+  const { installed, canPrompt, ios } = useInstallState();
   const [username, setUsername] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setUsername(user?.username || "");
@@ -104,13 +153,332 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 1500);
   };
 
+  const handleCopyDeviceId = async () => {
+    const value = user?.id;
+    if (!value) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        // Fallback for browsers/webviews without the async clipboard API.
+        const area = document.createElement("textarea");
+        area.value = value;
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        document.body.removeChild(area);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access can be blocked; the ID stays visible and selectable.
+    }
+  };
+
   const currentTheme = THEMES.find((option) => option.id === theme) ?? THEMES[1];
 
   return (
-    <div
-      data-theme-region="app"
-      className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
-    >
+    <>
+      {/* ─── Mobile (below lg) ───────────────────────────────────────────── */}
+      <div
+        data-theme-region="app"
+        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg lg:hidden"
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl"
+        />
+
+        <header className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+          <button
+            onClick={() => router.back()}
+            aria-label="Back"
+            title="Back"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-neutral-800/70 bg-neutral-950/50 text-neutral-300 backdrop-blur-xl transition active:scale-95 cursor-pointer"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/25">
+            <SettingsIcon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-white">Settings</h1>
+            <p className="truncate text-[12px] text-neutral-400">
+              Customize Shubhu your way <span aria-hidden="true">✨</span>
+            </p>
+          </div>
+        </header>
+
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto scroll-smooth">
+          <div className="space-y-3.5 px-4 pb-[calc(2rem_+_env(safe-area-inset-bottom))] pt-3">
+            {/* Get the App */}
+            <MobileCard
+              icon={<Smartphone className="h-5 w-5" />}
+              title="Get the App"
+              subtitle={
+                installed
+                  ? "Shubhu is installed on this device."
+                  : "Install Shubhu on your home screen for quick access."
+              }
+              action={
+                canPrompt && !installed ? (
+                  <button
+                    type="button"
+                    onClick={() => void promptInstall()}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3.5 py-2 text-[12px] font-semibold text-white transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Install
+                  </button>
+                ) : undefined
+              }
+            >
+              {installed ? (
+                <div className="flex items-center gap-2.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.07] p-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-400">
+                    <Check className="h-4 w-4" />
+                  </span>
+                  <p className="text-[12px] leading-snug text-neutral-300">
+                    You&apos;re using it as an app. It opens full-screen with its own icon.
+                  </p>
+                </div>
+              ) : !canPrompt && ios ? (
+                <ol className="space-y-2.5 rounded-2xl border border-neutral-800/60 bg-neutral-950/40 p-3 text-[12px] text-neutral-300">
+                  <li className="flex items-start gap-2.5">
+                    <Share className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>
+                      In Safari, tap the <b className="font-semibold text-white">Share</b> button
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <PlusSquare className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    <span>
+                      Choose <b className="font-semibold text-white">Add to Home Screen</b>, then{" "}
+                      <b className="font-semibold text-white">Add</b>
+                    </span>
+                  </li>
+                </ol>
+              ) : !canPrompt ? (
+                <p className="rounded-2xl border border-neutral-800/60 bg-neutral-950/40 p-3 text-[12px] leading-relaxed text-neutral-400">
+                  Open your browser menu (⋮) and choose{" "}
+                  <b className="font-semibold text-neutral-200">Install app</b> or{" "}
+                  <b className="font-semibold text-neutral-200">Add to Home screen</b>. This only appears on the
+                  https:// version of the site.
+                </p>
+              ) : null}
+            </MobileCard>
+
+            {/* Appearance */}
+            <MobileCard icon={<Palette className="h-5 w-5" />} title="Appearance" subtitle="Make Shubhu feel like you">
+              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Theme</p>
+              <div className="grid grid-cols-3 gap-2.5">
+                {THEMES.map((option) => {
+                  const selected = theme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setTheme(option.id)}
+                      aria-pressed={selected}
+                      title={option.description}
+                      className="group min-w-0 text-left cursor-pointer"
+                    >
+                      <span
+                        className={`relative block h-[72px] w-full overflow-hidden rounded-2xl border transition-all ${
+                          selected
+                            ? "border-emerald-400 ring-2 ring-emerald-500/40"
+                            : "border-neutral-800/80 group-active:scale-[0.98]"
+                        }`}
+                      >
+                        <span aria-hidden="true" className="absolute inset-0" style={{ background: option.swatch }} />
+                        {selected ? (
+                          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-black shadow">
+                            <Check className="h-3 w-3" />
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-2 flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${selected ? "bg-emerald-400" : "bg-neutral-500"}`}
+                        />
+                        <span
+                          className={`truncate text-[11px] font-medium ${selected ? "text-white" : "text-neutral-400"}`}
+                        >
+                          {option.name}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-neutral-500">{currentTheme.description}</p>
+            </MobileCard>
+
+            {/* Your Profile */}
+            <form id="mobile-settings-form" onSubmit={handleSave}>
+              <MobileCard
+                icon={<User className="h-5 w-5" />}
+                title="Your Profile"
+                subtitle={user?.email ? "Synced account" : "Guest on this device"}
+              >
+                <div className="flex items-center gap-3 rounded-2xl border border-neutral-800/60 bg-neutral-950/40 p-3">
+                  <img
+                    src={selectedAvatar}
+                    alt="Selected avatar"
+                    className="h-14 w-14 shrink-0 rounded-2xl border border-neutral-800 bg-neutral-800 object-cover p-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-white">{username.trim() || "Your profile"}</p>
+                    <span className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-neutral-800/60 bg-neutral-900/60 px-2.5 py-1 text-[10px] font-medium text-neutral-400">
+                      {user?.email ? (
+                        <Cloud className="h-3 w-3 shrink-0 text-emerald-400" />
+                      ) : (
+                        <Link2 className="h-3 w-3 shrink-0 text-emerald-400" />
+                      )}
+                      <span className="truncate">
+                        {user?.email ? "Synced across your devices" : "Library tied to this device"}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-2.5 flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Choose avatar
+                    </label>
+                    <span className="text-[11px] text-neutral-600">{AVATAR_OPTIONS.length} options</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 min-[360px]:grid-cols-6">
+                    {AVATAR_OPTIONS.map((av, i) => {
+                      const active = selectedAvatar === av;
+                      return (
+                        <button
+                          key={av}
+                          type="button"
+                          onClick={() => setSelectedAvatar(av)}
+                          title={`Avatar ${i + 1}`}
+                          aria-label={`Avatar ${i + 1}`}
+                          aria-pressed={active}
+                          className={`relative aspect-square rounded-xl p-0.5 transition-all cursor-pointer ${
+                            active
+                              ? "bg-emerald-500/10 ring-2 ring-emerald-500"
+                              : "ring-1 ring-neutral-800 opacity-70 active:opacity-100"
+                          }`}
+                        >
+                          <img
+                            src={av}
+                            alt={`Avatar ${i + 1}`}
+                            className="h-full w-full rounded-[10px] bg-neutral-800 object-cover"
+                          />
+                          {active ? (
+                            <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-black ring-2 ring-[var(--background)]">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="display-name-mobile"
+                    className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500"
+                  >
+                    Display name / username
+                  </label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+                    <input
+                      id="display-name-mobile"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="e.g. Dilip or BeatMaker"
+                      required
+                      className="h-12 w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 pl-10 pr-4 text-[14px] text-white placeholder:text-neutral-600 transition-colors focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+                </div>
+              </MobileCard>
+            </form>
+
+            {/* Account */}
+            <MobileCard
+              icon={<Crown className="h-5 w-5" />}
+              title="Account"
+              subtitle={user?.email ? "Synced account" : "Sync your library across devices"}
+            >
+              <div className="[&>div:first-child]:border-0 [&>div:first-child]:bg-transparent [&>div:first-child]:p-0 [&_button]:min-h-11">
+                <AccountSection />
+              </div>
+            </MobileCard>
+
+            {/* Device Information */}
+            {!user?.email && (
+              <MobileCard icon={<Laptop className="h-5 w-5" />} title="Device Information">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-neutral-500">Device ID</p>
+                    <p className="mt-0.5 break-all font-mono text-[12px] font-semibold text-neutral-200 select-all">
+                      {user?.id || "Not available"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyDeviceId}
+                    aria-label={copied ? "Device ID copied" : "Copy device ID"}
+                    title={copied ? "Copied" : "Copy device ID"}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-neutral-800/70 bg-neutral-950/50 text-neutral-400 transition active:scale-95 hover:text-white cursor-pointer"
+                  >
+                    {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+                  As a guest, your library is tied to this device only.
+                </p>
+              </MobileCard>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="submit"
+                form="mobile-settings-form"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,var(--theme-accent),var(--theme-accent-strong))] text-[14px] font-semibold text-[var(--theme-accent-contrast)] shadow-lg shadow-emerald-500/20 transition active:scale-[0.99] cursor-pointer"
+              >
+                {saved ? (
+                  <>
+                    <Check className="h-4 w-4" /> Saved!
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" /> Save Changes
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-neutral-800/80 bg-neutral-950/40 text-[14px] font-semibold text-neutral-300 transition active:scale-[0.99] hover:text-white cursor-pointer"
+              >
+                <X className="h-4 w-4" /> Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Desktop (unchanged) ─────────────────────────────────────────── */}
+      <div className="hidden lg:block">
+        <div
+          data-theme-region="app"
+          className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
+        >
       {/* Top Bar */}
       <header className="relative z-20 shrink-0 border-b border-neutral-800/70 bg-neutral-950/70 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:h-[72px] sm:gap-4 sm:px-6">
@@ -408,5 +776,7 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+      </div>
+    </>
   );
 }
