@@ -1054,6 +1054,63 @@
   color: #c4b2e6;
 }
 
+.shubhu-mp-downloadMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 10px 48px;
+}
+
+.shubhu-mp-downloadTrack {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.shubhu-mp-downloadFill {
+  height: 100%;
+  border-radius: inherit;
+  background: #14e88d;
+  transition: width 160ms linear;
+}
+
+.shubhu-mp-downloadAction {
+  border: 0;
+  background: transparent;
+  color: #ff9b9b;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.shubhu-mp-downloadError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 10px 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(244, 63, 94, 0.12);
+  color: #ffc9d2;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.shubhu-mp-downloadError span {
+  flex: 1;
+}
+
+.shubhu-mp-downloadError button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .shubhu-mp-menuToggleState {
   margin-left: auto;
   font-size: 12.5px;

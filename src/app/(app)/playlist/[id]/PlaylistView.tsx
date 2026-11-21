@@ -3,11 +3,13 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ListMusic, Play, Plus, Check, MoreVertical, Home, Search, Library, Shuffle } from "lucide-react";
+import { ArrowLeft, Download, ListMusic, Play, Plus, Check, MoreVertical, Shuffle, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { TrackRow } from "@/components/TrackRow";
+import { DownloadStatusList } from "@/components/DownloadStatusList";
 import { Track, SavedPlaylist } from "@/lib/types";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import { DOWNLOAD_TEST_NOTE, isDownloadTestPlaylistId } from "@/lib/testDownloadProvider";
 
 interface PlaylistTrack {
   videoId: string;
@@ -41,16 +43,52 @@ function toTrack(item: PlaylistTrack): Track {
 
 export function PlaylistView({ id }: { id: string }) {
   const router = useRouter();
-  const { playTrack, savedPlaylists, toggleSavedPlaylist } = usePlayer();
+  const {
+    playTrack,
+    playShuffledQueue,
+    isShuffle,
+    savedPlaylists,
+    toggleSavedPlaylist,
+    downloadTestPlaylist,
+    hideDownloadTestPlaylist,
+    downloadTracks,
+    offlineIds,
+  } = usePlayer();
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const isTestPlaylist = isDownloadTestPlaylistId(id);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setDownloadNotice(null);
+
+    if (isTestPlaylist) {
+      const tracks = downloadTestPlaylist.tracks || [];
+      setPlaylist({
+        id,
+        title: downloadTestPlaylist.name,
+        author: "Temporary test provider",
+        thumbnail: downloadTestPlaylist.coverUrl || getDefaultArtworkFallbackUrl(),
+        trackCount: tracks.length,
+        tracks: tracks.map((track) => ({
+          videoId: track.id,
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          thumbnail: track.coverUrl,
+          duration: track.duration,
+        })),
+      });
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetch(`/api/playlist?id=${encodeURIComponent(id)}`)
       .then(async (res) => {
@@ -73,9 +111,14 @@ export function PlaylistView({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, isTestPlaylist, downloadTestPlaylist]);
 
-  const tracks: Track[] = playlist ? playlist.tracks.map(toTrack) : [];
+  // Test fixtures keep their original Track fields (catalogue/API rows are lossy).
+  const tracks: Track[] = isTestPlaylist
+    ? downloadTestPlaylist.tracks ?? []
+    : playlist
+      ? playlist.tracks.map(toTrack)
+      : [];
   const isSaved = savedPlaylists.some((p) => p.id === id);
 
   const savedPlaylistPayload: SavedPlaylist | null = playlist
@@ -91,6 +134,34 @@ export function PlaylistView({ id }: { id: string }) {
   const handleToggleSave = () => {
     if (savedPlaylistPayload) toggleSavedPlaylist(savedPlaylistPayload);
     setShowHeaderMenu(false);
+  };
+
+  const downloadedCount = tracks.filter((track) => offlineIds.has(track.id)).length;
+
+  const handleDownloadPlaylist = async () => {
+    if (!playlist || tracks.length === 0) return;
+    const result = await downloadTracks(tracks, {
+      kind: "playlist",
+      id: `playlist:${id}`,
+      title: playlist.title,
+      index: 0,
+      total: tracks.length,
+      artworkUrl: playlist.thumbnail || undefined,
+      author: playlist.author || undefined,
+    });
+    if (result.batchId === "mobile-only") {
+      setDownloadNotice("Downloads are available in the mobile app only.");
+    } else if (result.unavailable.length === tracks.length) {
+      setDownloadNotice("No songs in this playlist have a legal download source.");
+    } else if (result.added.length > 0) {
+      setDownloadNotice(`Downloading ${result.added.length} of ${tracks.length} songs…`);
+    } else {
+      setDownloadNotice(
+        result.duplicates.length > 0
+          ? "Those songs are already downloaded or queued."
+          : "Nothing to download here.",
+      );
+    }
   };
 
   return (
@@ -139,7 +210,9 @@ export function PlaylistView({ id }: { id: string }) {
                 </div>
 
                 <div className="text-center sm:text-left flex-1 min-w-0">
-                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">PLAYLIST</p>
+                  <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">
+                    PLAYLIST{isTestPlaylist ? " • TEMPORARY TEST" : ""}
+                  </p>
                   <h1 className="font-display text-3xl sm:text-5xl font-bold text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
                     {playlist.title}
                   </h1>
@@ -148,6 +221,26 @@ export function PlaylistView({ id }: { id: string }) {
                     <span>•</span>
                     <span>{playlist.trackCount || tracks.length} songs</span>
                   </p>
+                  {isTestPlaylist && (
+                    <div className="sm:hidden mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-left">
+                      <p className="text-[11px] leading-snug text-amber-200">{DOWNLOAD_TEST_NOTE}</p>
+                      <div className="mt-2 flex flex-wrap gap-3 text-[11px]">
+                        <Link href="/album/download-test-samples" className="text-emerald-300 underline">
+                          Open test album
+                        </Link>
+                        <button
+                          onClick={() => {
+                            hideDownloadTestPlaylist();
+                            router.push("/");
+                          }}
+                          className="inline-flex items-center gap-1 text-neutral-300 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                          Hide test playlist
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Header three-dot menu (right side; laptop only) */}
@@ -188,26 +281,30 @@ export function PlaylistView({ id }: { id: string }) {
                 </div>
               </div>
 
-              {/* Play & Shuffle actions */}
-              <div className="flex items-center gap-4">
+              {/* Play, Shuffle, Save and Download actions */}
+              <div className="flex items-center gap-3 sm:gap-4">
                 {tracks.length > 0 && (
                   <>
                     <button
                       onClick={() => playTrack(tracks[0], tracks)}
                       className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
                       title="Play Playlist"
+                      aria-label="Play Playlist"
                     >
                       <Play className="w-6 h-6 fill-black ml-0.5" />
                     </button>
                     <button
-                      onClick={() => {
-                        const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-                        if (shuffled.length > 0) playTrack(shuffled[0], shuffled);
-                      }}
-                      className="w-11 h-11 rounded-full bg-neutral-900 border border-white/10 text-neutral-300 hover:text-white hover:border-white/20 flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                      title="Shuffle Playlist"
+                      onClick={() => void playShuffledQueue(tracks)}
+                      aria-pressed={isShuffle}
+                      aria-label="Shuffle Playlist"
+                      className={`w-11 h-11 rounded-full border flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer ${
+                        isShuffle
+                          ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10"
+                          : "border-white/10 bg-neutral-900 text-neutral-300 hover:text-white hover:border-white/20"
+                      }`}
+                      title={isShuffle ? "Shuffle is on" : "Shuffle Playlist"}
                     >
-                      <Shuffle className="w-5 h-5 text-emerald-400" />
+                      <Shuffle className="w-5 h-5" />
                     </button>
                   </>
                 )}
@@ -220,7 +317,24 @@ export function PlaylistView({ id }: { id: string }) {
                 >
                   {isSaved ? <Check className="w-4 h-4 text-emerald-400" /> : <Plus className="w-4 h-4" />}
                 </button>
+                {tracks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadPlaylist()}
+                    className="ml-auto w-11 h-11 shrink-0 rounded-full border border-white/15 bg-neutral-900/70 text-neutral-300 flex items-center justify-center hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-emerald-300 active:scale-95 active:bg-emerald-500/20 transition-all cursor-pointer"
+                    title="Download Playlist"
+                    aria-label="Download Playlist"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                )}
               </div>
+              {downloadNotice && (
+                <p className="text-xs text-emerald-300">{downloadNotice}</p>
+              )}
+              <p className="sm:hidden text-[11px] text-neutral-500">
+                {downloadedCount}/{tracks.length} songs downloaded on this device
+              </p>
 
               {/* Track list: number, cover, title + artist, duration, 3-dot (right) */}
               <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
@@ -235,6 +349,7 @@ export function PlaylistView({ id }: { id: string }) {
                   ))
                 )}
               </div>
+              <DownloadStatusList tracks={tracks} />
             </div>
           )}
       </main>

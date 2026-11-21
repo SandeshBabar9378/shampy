@@ -419,30 +419,56 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                   <ListPlus className="w-5 h-5" />
                   <span>Add to Playlist</span>
                 </button>
-                {DOWNLOADS_ENABLED && (
-                  <>
-                <button
-                  onClick={() => void dl.toggle()}
-                  disabled={dl.busy}
-                  className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer disabled:opacity-60"
-                >
-                  {dl.offline ? <DownloadCloud className="w-5 h-5 text-emerald-400" /> : <Download className="w-5 h-5" />}
-                  <span>{dl.label}</span>
-                </button>
-                {dl.inList && !dl.offline && !dl.busy && (
+                <div className="sm:hidden space-y-2">
                   <button
                     onClick={() => {
-                      void dl.removeFromList();
-                      closeMenus();
+                      void dl.toggle().then((message) => message && closeMenus());
                     }}
-                    className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium text-rose-400 hover:text-rose-300 cursor-pointer"
+                    disabled={dl.busy}
+                    className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer disabled:opacity-60"
                   >
-                    <Trash2 className="w-5 h-5" />
-                    <span>Remove from downloads</span>
+                    {dl.offline ? <DownloadCloud className="w-5 h-5 text-emerald-400" /> : <Download className="w-5 h-5" />}
+                    <span>{dl.label}</span>
                   </button>
-                )}
-                  </>
-                )}
+                  {dl.busy && (
+                    <button
+                      onClick={() => dl.cancel()}
+                      className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium text-rose-400 hover:text-rose-300 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                      <span>Cancel download</span>
+                    </button>
+                  )}
+                  {dl.status === "failed" && (
+                    <button
+                      onClick={() => dl.retry()}
+                      className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span>Retry download</span>
+                    </button>
+                  )}
+                  {dl.inList && !dl.offline && !dl.busy && (
+                    <button
+                      onClick={() => {
+                        void dl.removeFromList();
+                        closeMenus();
+                      }}
+                      className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium text-rose-400 hover:text-rose-300 cursor-pointer"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span>Remove from downloads</span>
+                    </button>
+                  )}
+                  {dl.error && (
+                    <div className="flex items-start gap-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                      <span className="flex-1">{dl.error}</span>
+                      <button onClick={dl.clearError} className="p-0.5 cursor-pointer" aria-label="Dismiss error">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => toggleLike(track)}
                   className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer"

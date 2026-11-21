@@ -1,0 +1,22 @@
+Download Test Playlist audio samples
+====================================
+
+The MP3 files in this directory are temporary fixtures for the mobile download
+test playlist only. They are not recommendations, music catalogue content, or
+part of any user's library.
+
+Source: https://samplelib.com/
+Files:
+  sample-3s.mp3   https://samplelib.com/mp3/sample-3s.mp3
+  sample-6s.mp3   https://samplelib.com/mp3/sample-6s.mp3
+  sample-9s.mp3   https://samplelib.com/mp3/sample-9s.mp3
+  sample-12s.mp3  https://samplelib.com/mp3/sample-12s.mp3
+  sample-15s.mp3  https://samplelib.com/mp3/sample-15s.mp3
+
+License note (from samplelib.com, checked 2026-11-21): "A completely free
+library of test files available to download without licensing restrictions."
+These files are bundled locally so the test provider does not depend on a
+third-party host at download time.
+
+Remove this directory and the temporary test-provider module together when the
+download feature no longer needs test fixtures.

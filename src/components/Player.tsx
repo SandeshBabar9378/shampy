@@ -9,7 +9,12 @@ import {
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
-import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
+import {
+  applyStableArtworkFallback,
+  getTrackArtworkFallbackUrl,
+  getTrackArtworkUrl,
+  getStableTrackArtworkUrl,
+} from "@/lib/artwork";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MobilePlayer } from "@/components/MobilePlayer";
 import { NowPlayingFullscreen } from "@/components/NowPlayingFullscreen";
@@ -51,6 +56,9 @@ export function Player({ embedded = false }: PlayerProps) {
 
   const cover = getTrackArtworkUrl(currentTrack, "max");
   const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "max"));
+  // The mobile bar keeps the track's stored artwork URL; the desktop footer
+  // above continues to use the original resolver and is intentionally unchanged.
+  const mobileCover = getStableTrackArtworkUrl(currentTrack, "max");
 
   // In embedded mode the bar is positioned inside the center flex region with
   // matching left/right gutters, so it stays centered as either sidebar changes.
@@ -389,13 +397,11 @@ export function Player({ embedded = false }: PlayerProps) {
             className="flex items-center gap-3 border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-2xl"
           >
             <img
-              src={cover}
+              src={mobileCover}
               alt={currentTrack.title}
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
-              }}
+              onError={(e) => applyStableArtworkFallback(e.currentTarget)}
               onClick={() => setMobileExpanded(true)}
               className="w-10 h-10 rounded-lg object-cover shrink-0 cursor-pointer"
             />

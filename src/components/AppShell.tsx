@@ -19,6 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [currentView, setCurrentViewState] = useState<string>("home");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchSubmitNonce, setSearchSubmitNonce] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<Track | null>(null);
@@ -40,16 +41,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
-    if (currentView !== "search") setCurrentView("search");
+    if (query.trim() && currentView !== "search") setCurrentView("search");
   }, [currentView, setCurrentView]);
+
+  const submitSearch = useCallback((query?: string) => {
+    const nextQuery = (query ?? searchQuery).trim();
+    if (!nextQuery) return;
+    setSearchQuery(nextQuery);
+    setSearchSubmitNonce((nonce) => nonce + 1);
+    setCurrentView("search");
+  }, [searchQuery, setCurrentView]);
 
   // Bridge events from TrackRow so create-playlist works on every routed page.
   useEffect(() => {
     const handleSearch = (event: Event) => {
       const detail = (event as CustomEvent<{ query?: string }>).detail;
       if (!detail?.query?.trim()) return;
-      setSearchQuery(detail.query);
-      setCurrentView("search");
+      submitSearch(detail.query);
     };
 
     const handleCreatePlaylist = (event: Event) => {
@@ -63,13 +71,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("shubhu:search", handleSearch);
       window.removeEventListener("shubhu:create-playlist", handleCreatePlaylist);
     };
-  }, [openCreatePlaylist, setCurrentView]);
+  }, [openCreatePlaylist, submitSearch]);
 
   const contextValue = useMemo<AppShellContextValue>(() => ({
     currentView,
     setCurrentView,
     searchQuery,
     setSearchQuery,
+    searchSubmitNonce,
+    submitSearch,
     openProfile,
     openCreatePlaylist,
     showRightPanel,
@@ -80,6 +90,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     currentView,
     setCurrentView,
     searchQuery,
+    searchSubmitNonce,
+    submitSearch,
     openProfile,
     openCreatePlaylist,
     showRightPanel,
@@ -102,6 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Navbar
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
+            onSearchSubmit={submitSearch}
             showSearch={currentView === "search"}
             onOpenProfile={openProfile}
             onOpenSearch={() => setCurrentView("search")}

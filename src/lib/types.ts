@@ -10,6 +10,17 @@ export interface Track {
   previewUrl?: string;
   genre?: string;
   language?: string;
+  /**
+   * A direct, legally downloadable audio URL. Only providers that own or are
+   * licensed to distribute the audio may set this (never YouTube).
+   */
+  downloadUrl?: string;
+  downloadMimeType?: string;
+  /** Expected byte size, when the provider knows it. */
+  fileSize?: number;
+  /** "test" marks the isolated temporary provider. */
+  source?: "test" | "youtube" | "external";
+  isTest?: boolean;
 }
 
 export interface Playlist {

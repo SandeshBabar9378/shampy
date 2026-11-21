@@ -66,6 +66,40 @@ export function getTrackArtworkFallbackUrl(
   return youtubeUrl || track?.coverUrl || getDefaultArtworkFallbackUrl();
 }
 
+/**
+ * Mobile artwork resolver.
+ *
+ * Unlike the desktop helper, this keeps the artwork URL that came with the
+ * track (including downloaded/offline metadata) instead of recomputing a
+ * YouTube thumbnail from `youtubeId` on every render. The same song therefore
+ * keeps the same URL across online/offline playback, Next/Previous and seeks,
+ * so the browser does not reload or blink the image.
+ */
+export function getStableTrackArtworkUrl(
+  track: { youtubeId?: string; coverUrl?: string } | null | undefined,
+  quality: YouTubeArtworkQuality = "max",
+): string {
+  if (track?.coverUrl) return track.coverUrl;
+  return getTrackArtworkUrl(track, quality);
+}
+
+/** One-shot fallback for mobile images; never swaps between qualities. */
+export function getStableArtworkFallbackUrl(): string {
+  return getDefaultArtworkFallbackUrl();
+}
+
+/** Avoid reloading the fallback when the fallback itself fails to decode. */
+export function applyStableArtworkFallback(image: HTMLImageElement): void {
+  const fallback = getStableArtworkFallbackUrl();
+  let absolute = fallback;
+  try {
+    absolute = new URL(fallback, typeof window === "undefined" ? undefined : window.location.href).href;
+  } catch {
+    // Fallback is already an absolute URL in practice.
+  }
+  if (image.src !== absolute) image.src = fallback;
+}
+
 export function getYouTubeThumbnailUrl(
   thumbnails: { url?: string; width?: number; height?: number }[] = [],
   videoId?: string,

@@ -8,6 +8,8 @@ export interface AppShellContextValue {
   setCurrentView: (view: string) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  searchSubmitNonce: number;
+  submitSearch: (query?: string) => void;
   openProfile: () => void;
   openCreatePlaylist: (track?: Track | null) => void;
   showRightPanel: boolean;

@@ -1,67 +1,101 @@
-// On-device store for downloaded audio, in IndexedDB. (Cache Storage would be
-// simpler but only exists on https/localhost, so it would break downloads when
-// the app is opened over plain http on a LAN address.)
+/**
+ * Backwards-compatible playback/storage API over the single audio adapter.
+ *
+ * DownloadManager writes through `audioStorage`; PlayerContext reads through
+ * the older `getOfflineAudio` helpers used by the existing HTML5 audio engine.
+ * Both now deliberately share the same IndexedDB database, object store and
+ * `AudioStorageAdapter`, so there is no duplicate persistence implementation.
+ *
+ * A future Capacitor filesystem adapter only has to replace `audioStorage`.
+ */
 
-const DB_NAME = "shubhu-offline";
-const STORE = "audio";
+import { audioStorage, type StoredAudioRecord } from "./audioStorage";
 
-interface StoredAudio {
+export type OfflineAudioStorage = typeof audioStorage;
+
+export interface OfflineAudioMeta {
+  mimeType?: string;
+  /** Legacy metadata name; stored as sourceId by the shared adapter. */
+  sourceUrl?: string;
+}
+
+export interface OfflineAudioInfo {
   id: string;
-  blob: Blob;
+  size: number;
+  mimeType: string;
   savedAt: number;
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") {
-      reject(new Error("Offline storage is not available in this browser."));
-      return;
-    }
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error("Could not open offline storage."));
+/** Full stored row. Extra metadata fields are optional on older rows. */
+export type OfflineAudioRow = StoredAudioRecord;
+
+function toInfo(record: StoredAudioRecord): OfflineAudioInfo {
+  return {
+    id: record.id,
+    size: record.size,
+    mimeType: record.mimeType,
+    savedAt: record.savedAt,
+  };
+}
+
+export async function saveOfflineAudio(
+  id: string,
+  blob: Blob,
+  meta: OfflineAudioMeta = {},
+): Promise<void> {
+  await audioStorage.save({
+    id,
+    blob,
+    size: blob.size,
+    mimeType: meta.mimeType || blob.type || "audio/mpeg",
+    savedAt: Date.now(),
+    sourceId: meta.sourceUrl,
   });
 }
 
-async function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await openDb();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
-      const req = fn(tx.objectStore(STORE));
-      tx.oncomplete = () => resolve(req.result);
-      tx.onerror = () => reject(tx.error ?? new Error("Offline storage failed."));
-      tx.onabort = () => reject(tx.error ?? new Error("Offline storage ran out of space."));
-    });
-  } finally {
-    db.close();
-  }
-}
-
-export async function saveOfflineAudio(id: string, blob: Blob): Promise<void> {
-  await run("readwrite", (s) => s.put({ id, blob, savedAt: Date.now() } satisfies StoredAudio));
-  // Ask the browser not to evict downloads under storage pressure (best effort).
-  try {
-    await navigator.storage?.persist?.();
-  } catch {}
-}
-
 export async function getOfflineAudio(id: string): Promise<Blob | null> {
-  const row = (await run("readonly", (s) => s.get(id))) as StoredAudio | undefined;
-  return row?.blob ?? null;
+  const record = await audioStorage.get(id);
+  return record?.blob ?? null;
+}
+
+export async function getOfflineAudioInfo(id: string): Promise<OfflineAudioInfo | null> {
+  const record = await audioStorage.get(id);
+  return record ? toInfo(record) : null;
 }
 
 export async function removeOfflineAudio(id: string): Promise<void> {
-  await run("readwrite", (s) => s.delete(id));
+  await audioStorage.remove(id);
 }
 
 export async function clearOfflineAudio(): Promise<void> {
-  await run("readwrite", (s) => s.clear());
+  await audioStorage.clear();
 }
 
-/** Ids of every song stored on this device, with when each was saved. */
-export async function listOfflineAudio(): Promise<{ id: string; savedAt: number }[]> {
-  const rows = (await run("readonly", (s) => s.getAll())) as StoredAudio[];
-  return rows.map((r) => ({ id: r.id, savedAt: r.savedAt }));
+export async function listOfflineAudio(): Promise<OfflineAudioRow[]> {
+  return audioStorage.list();
 }
+
+export async function offlineAudioUsage(): Promise<{ usedBytes: number; quotaBytes: number | null }> {
+  let usedBytes = 0;
+  try {
+    usedBytes = (await audioStorage.list()).reduce((sum, row) => sum + row.size, 0);
+  } catch {
+    // Storage may be unavailable; report what the browser estimate knows.
+  }
+  let quotaBytes: number | null = null;
+  try {
+    const estimate = await audioStorage.estimate();
+    if (estimate?.quota) quotaBytes = estimate.quota;
+    if (estimate?.usage && estimate.usage > usedBytes) usedBytes = estimate.usage;
+  } catch {}
+  return { usedBytes, quotaBytes };
+}
+
+export const offlineAudioStorage: OfflineAudioStorage = {
+  save: (record) => audioStorage.save(record),
+  get: (id) => audioStorage.get(id),
+  list: () => audioStorage.list(),
+  remove: (id) => audioStorage.remove(id),
+  clear: () => audioStorage.clear(),
+  estimate: async () => (await audioStorage.estimate()) ?? { usage: 0, quota: 0 },
+};

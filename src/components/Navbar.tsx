@@ -7,17 +7,18 @@ import { usePlayer } from "@/context/PlayerContext";
 interface NavbarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onSearchSubmit: (q?: string) => void;
   showSearch: boolean;
   onOpenProfile: () => void;
   onOpenSearch: () => void;
 }
 
-export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile, onOpenSearch }: NavbarProps) {
+export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch, onOpenProfile, onOpenSearch }: NavbarProps) {
   const { user } = usePlayer();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    // Search is handled reactively through onSearchChange
+    e?.preventDefault();
+    onSearchSubmit(searchQuery);
   };
 
   return (
@@ -37,31 +38,50 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
         )}
       </div>
 
-      {/* Desktop Search bar */}
-      <div className="hidden sm:flex flex-1 max-w-md">
-        <div className="relative w-full">
+      {/* Desktop Search bar — width is capped in CSS so it can shrink before
+          it ever reaches the profile controls on narrow laptops. */}
+      <form onSubmit={handleSearchSubmit} className="hidden sm:flex flex-1 min-w-0 mx-3 lg:mx-6">
+        <div className="shubhu-desktop-search relative min-w-0">
           <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
-            type="text"
+            type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSearchSubmit(e.currentTarget.value);
+              }
+            }}
             placeholder="Search songs, artists, albums…"
             className="w-full bg-neutral-900/70 text-white placeholder-neutral-400 pl-10 pr-4 py-2 rounded-xl text-sm border border-white/5 focus:border-emerald-500/50 focus:outline-none focus:bg-neutral-900 transition-all shadow-inner"
+            autoComplete="off"
+            enterKeyHint="search"
+            name="global-search"
           />
         </div>
-      </div>
+      </form>
 
       {/* Mobile search bar: takes full width between logo and search button */}
       {showSearch && (
         <form onSubmit={handleSearchSubmit} className="sm:hidden flex-1 mx-2">
           <div className="relative w-full">
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onSearchSubmit(e.currentTarget.value);
+                }
+              }}
               placeholder="Search songs, artists, albums…"
-              className="w-full bg-neutral-900 text-white placeholder-neutral-500 pl-3 pr-3 py-2 rounded-full text-sm border border-transparent focus:border-neutral-700 focus:outline-none focus:bg-neutral-800 transition-all"
+              className="shubhu-mobile-search-input w-full py-2 pl-3.5 pr-3 text-sm rounded-full focus:outline-none"
               autoFocus
+              autoComplete="off"
+              enterKeyHint="search"
+              name="global-search-mobile"
             />
           </div>
         </form>
@@ -104,10 +124,11 @@ export function Navbar({ searchQuery, onSearchChange, showSearch, onOpenProfile,
           <button
             type="button"
             onClick={() => handleSearchSubmit()}
-            className="sm:hidden rounded-full bg-emerald-500 text-black p-2 hover:bg-[var(--theme-accent-strong)] transition-colors cursor-pointer shrink-0"
+            className="shubhu-mobile-search-submit sm:hidden shrink-0 cursor-pointer"
             title="Search"
+            aria-label="Search"
           >
-            <Search className="w-4 h-4 fill-black" />
+            <Search className="w-[18px] h-[18px]" strokeWidth={2.2} />
           </button>
         )}
       </div>

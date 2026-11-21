@@ -7,12 +7,31 @@ import { getSimilarSongs } from "@/lib/similarity";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 import { isValidVideoId } from "@/lib/videoId";
 import {
-  saveOfflineAudio,
   getOfflineAudio,
   removeOfflineAudio,
   clearOfflineAudio,
   listOfflineAudio,
 } from "@/lib/offlineAudio";
+import {
+  downloadManager,
+  type DownloadBatch,
+  type DownloadCompletedRecord,
+  type DownloadGroupInfo,
+  type DownloadJob,
+  type DownloadRecordMeta,
+  type EnqueueResult,
+} from "@/lib/downloadManager";
+import {
+  downloadCollections,
+  type DownloadCollectionRecord,
+} from "@/lib/downloadCollections";
+import {
+  DOWNLOAD_TEST_PLAYLIST_HIDE_KEY,
+  getDownloadTestPlaylist,
+  isDownloadTestTrack,
+  isDownloadTestTrackId,
+  resolveDownloadSource,
+} from "@/lib/testDownloadProvider";
 
 interface YTPlayerInstance {
   loadVideoById: (params: { videoId: string; startSeconds?: number } | string) => void;
@@ -50,6 +69,22 @@ export interface AuthResult {
   error?: string;
 }
 
+/** Ordered, device-local collection reference (audio bytes stay in `audio`). */
+export type { DownloadCollectionRecord } from "@/lib/downloadCollections";
+
+export interface DownloadBatchResult {
+  total: number;
+  queued: number;
+  alreadyDownloaded: number;
+  unavailable: number;
+  errors: { trackId: string; error: string }[];
+}
+
+export interface OfflineFileInfo {
+  size: number;
+  savedAt: number;
+}
+
 /** One open play, so end/skip/manual-next can be told apart. Never rendered. */
 interface PlayContext {
   songId: string;
@@ -75,6 +110,24 @@ interface ActivityEvent {
   replay?: boolean;
   negative?: boolean;
   track?: Track;
+}
+
+/** Options for the single existing playback entry point. */
+interface PlayTrackOptions {
+  /** Let Smart Queue append recommendations after playback starts. */
+  appendSimilar?: boolean;
+  /** The supplied queue is already in the active shuffle order. */
+  shuffleOrder?: boolean;
+}
+
+/** Fisher–Yates: a genuinely randomized queue, not a comparison sort. */
+function randomizedQueue(tracks: Track[]): Track[] {
+  const result = [...tracks];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 /** Wraps an <audio> element in the same interface as the YouTube player, so
@@ -133,7 +186,9 @@ interface PlayerContextType {
   setMobileExpanded: (v: boolean) => void;
   setAppQueue: (newQueue: Track[]) => void;
   playNext: (track: Track) => void;
-  playTrack: (track: Track, newQueue?: Track[]) => Promise<void>;
+  playTrack: (track: Track, newQueue?: Track[], options?: PlayTrackOptions) => Promise<void>;
+  /** Starts a playlist from a random track with its queue shuffled in place. */
+  playShuffledQueue: (tracks: Track[]) => Promise<void>;
   togglePlay: () => void;
   nextTrack: () => void;
   prevTrack: () => void;
@@ -160,7 +215,31 @@ interface PlayerContextType {
   offlineIds: Set<string>;
   /** 0..1 while a download is in progress, keyed by track id. */
   downloadProgress: Record<string, number>;
-  downloadTrack: (track: Track) => Promise<AuthResult>;
+  /** Live central-manager jobs (queued/downloading/failed/…). */
+  downloadJobs: DownloadJob[];
+  /** Metadata for audio actually stored on this device. */
+  downloadRecords: DownloadRecordMeta[];
+  /** One card per downloaded playlist/album plus Downloaded Songs. */
+  downloadCollections: DownloadCollectionRecord[];
+  /** Outcomes of individual download requests (including partial batches). */
+  downloadBatches: DownloadBatch[];
+  downloadOnline: boolean;
+  /** User-visible playback failure (e.g. a missing/corrupt local file). */
+  playbackError: string | null;
+  clearPlaybackError: () => void;
+  /** Dedicated temporary test playlist (never part of the synced library). */
+  downloadTestPlaylist: Playlist;
+  downloadTestPlaylistVisible: boolean;
+  hideDownloadTestPlaylist: () => void;
+  downloadTrack: (track: Track, group?: DownloadGroupInfo) => Promise<AuthResult>;
+  downloadTracks: (tracks: Track[], group?: DownloadGroupInfo) => Promise<EnqueueResult>;
+  retryDownload: (id: string) => boolean;
+  cancelDownload: (id: string) => boolean;
+  clearFinishedDownloads: () => void;
+  /** Removes the song from one collection only; stored audio is kept. */
+  removeTrackFromDownloadCollection: (collectionId: string, trackId: string) => Promise<void>;
+  /** Explicit permanent-delete action (removes the stored audio Blob). */
+  deleteDownloadedAudio: (track: Track) => Promise<void>;
   removeDownload: (track: Track) => Promise<void>;
   signIn: (email: string, pin: string) => Promise<AuthResult>;
   signUp: (email: string, pin: string) => Promise<AuthResult>;
@@ -221,6 +300,8 @@ const REFRESH_INTERVAL_MS = 45_000;
 const RECENT_KEEP = 6;
 // Don't prune a just-saved local download before the server list has caught up.
 const DOWNLOAD_PRUNE_GRACE_MS = 2 * 60_000;
+
+const DOWNLOAD_TEST_PLAYLIST = getDownloadTestPlaylist();
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Start on Aurora Glow so SSR and the first client render match. The
@@ -310,7 +391,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   });
   const [offlineIds, setOfflineIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
+  const [downloadJobs, setDownloadJobs] = useState<DownloadJob[]>(
+    () => downloadManager.getSnapshot().jobs,
+  );
+  const [downloadRecords, setDownloadRecords] = useState<DownloadRecordMeta[]>(
+    () => downloadManager.getSnapshot().records,
+  );
+  const [downloadCollectionsState, setDownloadCollectionsState] = useState<DownloadCollectionRecord[]>(
+    () => downloadCollections.getSnapshot(),
+  );
+  const [downloadBatches, setDownloadBatches] = useState<DownloadBatch[]>(
+    () => downloadManager.getSnapshot().batches,
+  );
+  const [downloadOnline, setDownloadOnline] = useState<boolean>(
+    () => downloadManager.getSnapshot().online,
+  );
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [downloadTestPlaylistVisible, setDownloadTestPlaylistVisible] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return lsGet(DOWNLOAD_TEST_PLAYLIST_HIDE_KEY) !== "1";
+  });
   const offlineIdsRef = useRef<Set<string>>(new Set());
+  const downloadsRef = useRef<Track[]>(downloads);
 
   // Library sync bookkeeping.
   const refreshSeqRef = useRef(0);         // newest request wins; stale responses are dropped
@@ -424,6 +526,133 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       pendingWritesRef.current--;
     }
   };
+
+  const postLibraryRef = useRef(postLibrary);
+  useEffect(() => {
+    postLibraryRef.current = postLibrary;
+  });
+  useEffect(() => {
+    downloadsRef.current = downloads;
+  }, [downloads]);
+
+  // Mirror the singleton download manager into React state. All progress comes
+  // from real streamed bytes; this subscription never writes fake progress.
+  useEffect(() => {
+    const unsubscribe = downloadManager.subscribe(() => {
+      const snapshot = downloadManager.getSnapshot();
+      setDownloadJobs(snapshot.jobs);
+      setDownloadRecords(snapshot.records);
+      setDownloadBatches(snapshot.batches);
+      setDownloadOnline(snapshot.online);
+      const progress: Record<string, number> = {};
+      for (const job of snapshot.jobs) {
+        if (job.status === "downloading" && job.total > 0) {
+          progress[job.id] = Math.min(1, job.loaded / job.total);
+        }
+      }
+      setDownloadProgress(progress);
+    });
+    void downloadManager.hydrate();
+    return unsubscribe;
+  }, []);
+
+  // Mirror the collection registry. It only stores ordered references, never
+  // audio bytes, and is hydrated from existing records for backward compatibility.
+  useEffect(() => {
+    let cancelled = false;
+    const unsubscribe = downloadCollections.subscribe(() => {
+      setDownloadCollectionsState(downloadCollections.getSnapshot());
+    });
+    void (async () => {
+      await downloadManager.hydrate();
+      if (!cancelled) {
+        await downloadCollections.hydrate(downloadManager.getSnapshot().records);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  // Completion/removal persistence. The manager owns the Blob; this context
+  // owns the account's Downloads list and the local id set used by playback.
+  useEffect(() => {
+    const handleCompleted = async (record: DownloadCompletedRecord) => {
+      const existing = downloadsRef.current.find((track) => track.id === record.id);
+      const track: Track = existing
+        ? {
+            ...existing,
+            youtubeId: existing.youtubeId ?? record.youtubeId,
+            coverUrl: existing.coverUrl || record.coverUrl || getDefaultArtworkFallbackUrl(),
+          }
+        : {
+            id: record.id,
+            title: record.title ?? record.id,
+            artist: record.artist ?? "Unknown artist",
+            album: record.album ?? "Downloads",
+            coverUrl: record.coverUrl ?? getDefaultArtworkFallbackUrl(),
+            duration: record.duration ?? 0,
+            youtubeId: record.youtubeId,
+          };
+      offlineIdsRef.current = new Set(offlineIdsRef.current).add(track.id);
+      setOfflineIds(new Set(offlineIdsRef.current));
+      // Collection membership is a reference only; the Blob stays in audioStorage.
+      void downloadCollections.addCompleted(record);
+
+      // Temporary test fixtures stay on this device only. They must never
+      // enter the account's synced Downloads library.
+      if (isDownloadTestTrackId(record.id)) return;
+
+      const next = [track, ...downloadsRef.current.filter((item) => item.id !== track.id)];
+      downloadsRef.current = next;
+      setDownloads(next);
+      lsSet("shubhu_downloads", JSON.stringify(next));
+      if (!(await postLibraryRef.current({ action: "add_download", track }))) {
+        const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
+        lsSet("shubhu_download_pending", JSON.stringify([track, ...pending.filter((t) => t.id !== track.id)]));
+      }
+    };
+
+    const handleRemoved = async (id: string) => {
+      const track = downloadsRef.current.find((item) => item.id === id);
+      offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((item) => item !== id));
+      setOfflineIds(new Set(offlineIdsRef.current));
+      void downloadCollections.purgeTrack(id);
+
+      // Stop a removed file immediately; the persisted blob is already deleted
+      // by the manager. Queue/index/currentTrack are left untouched.
+      const audio = audioElRef.current;
+      if (currentTrackRef.current?.id === id && audio) {
+        ytPlayerRef.current?.pauseVideo();
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+        if (audioObjectUrlRef.current) {
+          URL.revokeObjectURL(audioObjectUrlRef.current);
+          audioObjectUrlRef.current = null;
+        }
+        if (ytRealRef.current) ytPlayerRef.current = ytRealRef.current;
+        setIsPlaying(false);
+      }
+
+      if (isDownloadTestTrackId(id)) return;
+      const next = downloadsRef.current.filter((item) => item.id !== id);
+      downloadsRef.current = next;
+      setDownloads(next);
+      lsSet("shubhu_downloads", JSON.stringify(next));
+      const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
+      lsSet("shubhu_download_pending", JSON.stringify(pending.filter((item) => item.id !== id)));
+      if (track) await postLibraryRef.current({ action: "remove_download", trackId: id });
+    };
+
+    const offCompleted = downloadManager.onCompleted(handleCompleted);
+    const offRemoved = downloadManager.onRemoved(handleRemoved);
+    return () => {
+      offCompleted();
+      offRemoved();
+    };
+  }, []);
 
   /** Sends buffered listening signals. Never throws, never blocks playback. */
   const flushActivity = () => {
@@ -669,13 +898,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       listOfflineAudio()
         .then(async (rows) => {
           const stale = rows.filter(
-            (r) => !keep.has(r.id) && !pending.has(r.id) && Date.now() - r.savedAt > DOWNLOAD_PRUNE_GRACE_MS,
+            (r) =>
+              !isDownloadTestTrackId(r.id) &&
+              !keep.has(r.id) &&
+              !pending.has(r.id) &&
+              Date.now() - r.savedAt > DOWNLOAD_PRUNE_GRACE_MS,
           );
           if (stale.length === 0) return;
           await Promise.all(stale.map((r) => removeOfflineAudio(r.id)));
           const gone = new Set(stale.map((r) => r.id));
           offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((id) => !gone.has(id)));
           setOfflineIds(new Set(offlineIdsRef.current));
+          await downloadManager.refreshFromStorage();
         })
         .catch(() => {});
     }
@@ -717,7 +951,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const isRepeatRef = useRef(isRepeat);
   const isShuffleRef = useRef(isShuffle);
   const queueRef = useRef(queue);
+  const currentIndexRef = useRef(currentIndex);
   const currentTrackRef = useRef(currentTrack);
+  /** True only when the active queue itself was randomized by Shuffle Play. */
+  const shuffleQueueRef = useRef(false);
 
   useEffect(() => {
     isRepeatRef.current = isRepeat;
@@ -730,6 +967,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -866,9 +1107,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (currentQueue.length === 0) return;
 
     if (isShuffleRef.current) {
-      const randomIndex = Math.floor(Math.random() * currentQueue.length);
-      setCurrentIndex(randomIndex);
-      playTrack(currentQueue[randomIndex]);
+      let nextIndex: number;
+      if (shuffleQueueRef.current) {
+        // Shuffle Play already randomized the queue, so advance through that
+        // order (wrapping at the end) instead of picking again at random.
+        const queuedIndex = currentIndexRef.current;
+        const fallbackIndex = currentQueue.findIndex(
+          (song) => song.id === currentTrackRef.current?.id,
+        );
+        const startIndex =
+          queuedIndex >= 0 && queuedIndex < currentQueue.length
+            ? queuedIndex
+            : Math.max(0, fallbackIndex);
+        nextIndex = (startIndex + 1) % currentQueue.length;
+      } else {
+        nextIndex = Math.floor(Math.random() * currentQueue.length);
+      }
+      currentIndexRef.current = nextIndex;
+      setCurrentIndex(nextIndex);
+      playTrack(
+        currentQueue[nextIndex],
+        undefined,
+        shuffleQueueRef.current ? { appendSimilar: false } : undefined,
+      );
       return;
     }
 
@@ -993,15 +1254,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
       handleSongEndRef.current();
     };
+    const onError = () => {
+      if (!active()) return;
+      setIsPlaying(false);
+      setPlaybackError("This downloaded file can't be played. Remove it and download again.");
+    };
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
     audio.addEventListener("ended", onEnded);
+    audio.addEventListener("error", onError);
 
     return () => {
       audio.pause();
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("error", onError);
       if (audioObjectUrlRef.current) URL.revokeObjectURL(audioObjectUrlRef.current);
     };
   }, []);
@@ -1131,96 +1399,164 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ── Playback actions ───────────────────────────────────────────────────────
-  const playTrack = async (track: Track, newQueue?: Track[]) => {
-    // Determine and validate videoId
-    let candidateId = track.youtubeId || (isValidVideoId(track.id) ? track.id : undefined);
+  const playTrack = async (
+    track: Track,
+    newQueue?: Track[],
+    options?: PlayTrackOptions,
+  ) => {
+    const isTestTrack = isDownloadTestTrack(track);
+    const localRecord = offlineIdsRef.current.has(track.id) || downloadManager.hasCompleted(track.id);
+    let audioSrc: string | null = null;
+    let audioSrcIsObjectUrl = false;
 
-    if (!isValidVideoId(candidateId)) {
-      console.warn(`[Player] Invalid or missing videoId for song "${track.title}" (id: ${track.id}, youtubeId: ${track.youtubeId}).`);
+    // Prefer real stored bytes. This read works with no network at all.
+    if (localRecord && audioElRef.current && audioPlayerRef.current) {
+      try {
+        const blob = await getOfflineAudio(track.id);
+        if (blob) {
+          audioSrc = URL.createObjectURL(blob);
+          audioSrcIsObjectUrl = true;
+        }
+      } catch {
+        audioSrc = null;
+      }
+    }
+
+    // Bundled test tracks can stream from their local file before download.
+    if (!audioSrc && isTestTrack) {
+      const source = resolveDownloadSource(track);
+      if (source && (typeof navigator === "undefined" || navigator.onLine !== false)) {
+        audioSrc = source.url;
+      }
+    }
+
+    if (!audioSrc && (isTestTrack || localRecord)) {
+      setIsPlaying(false);
+      setPlaybackError(
+        typeof navigator !== "undefined" && navigator.onLine === false
+          ? "You are offline and this song is not downloaded. Reconnect or download it first."
+          : "This download is missing or unreadable. Remove it and download again.",
+      );
       return;
     }
 
+    // A streaming videoId is only needed when there is no local audio file.
+    const candidateId = track.youtubeId || (isValidVideoId(track.id) ? track.id : undefined);
+    if (!audioSrc && !isValidVideoId(candidateId)) {
+      console.warn(`[Player] Invalid or missing videoId for song "${track.title}" (id: ${track.id}, youtubeId: ${track.youtubeId}).`);
+      setIsPlaying(false);
+      setPlaybackError("This song has no playable audio source.");
+      return;
+    }
+    setPlaybackError(null);
+
+    // Keep richer metadata for the same song. Downloads views can reconstruct a
+    // reduced Track from IndexedDB; merging prevents artwork from switching
+    // between a YouTube thumbnail and coverUrl for the same playing song.
+    const previous = currentTrackRef.current;
+    const playbackTrack: Track =
+      previous?.id === track.id
+        ? {
+            ...previous,
+            ...track,
+            youtubeId: track.youtubeId ?? previous.youtubeId,
+            coverUrl: track.coverUrl || previous.coverUrl,
+            artistId: track.artistId ?? previous.artistId,
+          }
+        : track;
+
     // Signal bookkeeping only: closing the previous play and opening this one
     // changes no playback or queue state.
-    startPlayContext(track);
+    startPlayContext(playbackTrack);
 
-    setCurrentTrack(track);
+    setCurrentTrack(playbackTrack);
     setCurrentTime(0);
-    setDuration(track.duration || 0);
+    setDuration(playbackTrack.duration || 0);
 
     const activeQueue = newQueue ? [...newQueue] : queueRef.current;
     if (newQueue) {
       const idx = newQueue.findIndex((t) => t.id === track.id);
-      setCurrentIndex(idx !== -1 ? idx : 0);
+      currentIndexRef.current = idx !== -1 ? idx : 0;
+      setCurrentIndex(currentIndexRef.current);
       setQueue(activeQueue);
+      // A plain queue replacement disables the "queue is shuffled" mode;
+      // Shuffle Play opts back in explicitly via shuffleOrder.
+      if (!options?.shuffleOrder) shuffleQueueRef.current = false;
     }
 
-    // Automatically build Smart Queue: append similar tracks to end of active queue
-    fetchSimilarTracks(track).then((similar) => {
-      if (similar.length > 0) {
-        setQueue((prevQueue) => {
-          const currentIds = new Set(prevQueue.map((t) => t.id));
-          const toAdd = similar.filter((s) => !currentIds.has(s.id));
-          if (toAdd.length === 0) return prevQueue;
-          return [...prevQueue, ...toAdd];
-        });
-      }
-    });
+    // Test fixtures stay isolated from recommendations and repair queues.
+    if (
+      options?.appendSimilar !== false &&
+      // A Shuffle Play queue stays exactly the randomized playlist; incidental
+      // plays must not append Smart Queue recommendations to it.
+      !shuffleQueueRef.current &&
+      !isTestTrack &&
+      typeof navigator !== "undefined" &&
+      navigator.onLine !== false
+    ) {
+      // Automatically build Smart Queue: append similar tracks to end of active queue
+      fetchSimilarTracks(track).then((similar) => {
+        if (similar.length > 0) {
+          setQueue((prevQueue) => {
+            const currentIds = new Set(prevQueue.map((t) => t.id));
+            const toAdd = similar.filter((s) => !currentIds.has(s.id));
+            if (toAdd.length === 0) return prevQueue;
+            return [...prevQueue, ...toAdd];
+          });
+        }
+      });
+    }
 
     setIsResolving(true);
     try {
       // Downloaded on this device? Play the stored audio, no network needed.
-      let offlineUrl: string | null = null;
       const audioEl = audioElRef.current;
-      if (audioEl && audioPlayerRef.current && offlineIdsRef.current.has(track.id)) {
-        try {
-          const blob = await getOfflineAudio(track.id);
-          if (blob) offlineUrl = URL.createObjectURL(blob);
-        } catch {
-          /* fall back to streaming */
-        }
-      }
-
-      if (offlineUrl && audioEl && audioPlayerRef.current) {
+      if (audioSrc && audioEl && audioPlayerRef.current) {
         try {
           ytRealRef.current?.pauseVideo();
         } catch { /* iframe not ready */ }
         ytPlayerRef.current = audioPlayerRef.current;
         if (audioObjectUrlRef.current) URL.revokeObjectURL(audioObjectUrlRef.current);
-        audioObjectUrlRef.current = offlineUrl;
-        audioEl.src = offlineUrl;
+        audioObjectUrlRef.current = audioSrcIsObjectUrl ? audioSrc : null;
+        audioEl.src = audioSrc;
         audioEl.volume = isMuted ? 0 : volume;
         audioEl.playbackRate = playbackRate;
         audioPlayerRef.current.playVideo();
         setIsPlaying(true);
       } else {
         // Hand control back to the YouTube player (stop any offline audio first).
-        if (audioEl && ytPlayerRef.current === audioPlayerRef.current && ytRealRef.current) {
-          ytPlayerRef.current = ytRealRef.current;
+        if (audioEl && ytPlayerRef.current === audioPlayerRef.current) {
+          ytPlayerRef.current = ytRealRef.current ?? audioPlayerRef.current;
           audioEl.pause();
           audioEl.removeAttribute("src");
           audioEl.load();
+          if (audioObjectUrlRef.current) {
+            URL.revokeObjectURL(audioObjectUrlRef.current);
+            audioObjectUrlRef.current = null;
+          }
         }
         const player = ytPlayerRef.current;
         if (player?.loadVideoById) {
-          player.loadVideoById({ videoId: candidateId, startSeconds: 0 });
+          player.loadVideoById({ videoId: candidateId as string, startSeconds: 0 });
           player.playVideo();
           setIsPlaying(true);
+        } else {
+          setPlaybackError("The player is still loading. Try again in a moment.");
         }
       }
 
-      // Record in history (best-effort)
-      if (user?.id) {
-        void postLibrary({ action: "record_history", track });
+      // Test fixtures never pollute listening history or recommendations.
+      if (!isTestTrack && user?.id) {
+        void postLibrary({ action: "record_history", track: playbackTrack });
       }
 
       // Update recentlyPlayed in localStorage (zero login / local storage safe)
-      if (typeof window !== "undefined") {
+      if (!isTestTrack && typeof window !== "undefined") {
         try {
           const recent: Track[] = JSON.parse(
             localStorage.getItem("recentlyPlayed") || "[]"
           );
-          const updated = [track, ...recent.filter((s) => s.id !== track.id)].slice(0, 6);
+          const updated = [playbackTrack, ...recent.filter((s) => s.id !== playbackTrack.id)].slice(0, 6);
           localStorage.setItem("recentlyPlayed", JSON.stringify(updated));
           // Let the home page refresh its recommendation seeds in the same tab.
           window.dispatchEvent(new Event("storage"));
@@ -1228,9 +1564,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error("Playback error:", err);
+      setIsPlaying(false);
+      setPlaybackError(err instanceof Error ? err.message : "Playback failed. Please retry.");
     } finally {
       setIsResolving(false);
     }
+  };
+
+  // The playlist Shuffle action goes through the same playTrack/queue path as
+  // Play. It only randomizes the queue first and enables the shared shuffle
+  // state so every player control sees the same order.
+  const playShuffledQueue = async (tracks: Track[]) => {
+    if (tracks.length === 0) return;
+    const shuffled = randomizedQueue(tracks);
+    currentIndexRef.current = 0;
+    shuffleQueueRef.current = true;
+    isShuffleRef.current = true;
+    setIsShuffle(true);
+    await playTrack(shuffled[0], shuffled, {
+      appendSimilar: false,
+      shuffleOrder: true,
+    });
   };
 
   const togglePlay = () => {
@@ -1264,12 +1618,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Advancing while a track is open is a skip (the player decides otherwise
     // on a natural end, which routes through handleSongEnd instead).
     closePlay("skip");
-    if (queue.length === 0) return;
-    let nextIdx = isShuffle
-      ? Math.floor(Math.random() * queue.length)
-      : currentIndex + 1;
+    const currentQueue = queueRef.current;
+    if (currentQueue.length === 0) return;
+    const shuffleActive = isShuffleRef.current;
 
-    if (!isShuffle && nextIdx >= queue.length) {
+    if (shuffleActive && shuffleQueueRef.current) {
+      // Follow the shuffled playlist order rather than re-rolling each press.
+      const queuedIndex = currentIndexRef.current;
+      const fallbackIndex = currentQueue.findIndex(
+        (song) => song.id === currentTrackRef.current?.id,
+      );
+      const startIndex =
+        queuedIndex >= 0 && queuedIndex < currentQueue.length
+          ? queuedIndex
+          : Math.max(0, fallbackIndex);
+      const nextIndex = (startIndex + 1) % currentQueue.length;
+      currentIndexRef.current = nextIndex;
+      setCurrentIndex(nextIndex);
+      playTrack(currentQueue[nextIndex], undefined, { appendSimilar: false });
+      return;
+    }
+
+    let nextIdx = shuffleActive
+      ? Math.floor(Math.random() * currentQueue.length)
+      : currentIndexRef.current + 1;
+
+    if (!shuffleActive && nextIdx >= currentQueue.length) {
       if (isRepeat) {
         nextIdx = 0;
       } else {
@@ -1280,7 +1654,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (similar.length > 0) {
             const extendedQueue = [...queueRef.current, ...similar];
             setQueue(extendedQueue);
-            setCurrentIndex(queueRef.current.length);
+            currentIndexRef.current = queueRef.current.length;
+            setCurrentIndex(currentIndexRef.current);
             playTrack(similar[0]);
             return;
           }
@@ -1288,17 +1663,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         nextIdx = 0; // loop back if completely exhausted
       }
     }
+    currentIndexRef.current = nextIdx;
     setCurrentIndex(nextIdx);
-    playTrack(queue[nextIdx]);
+    playTrack(currentQueue[nextIdx]);
   };
 
   const prevTrack = () => {
     // Going back is both a skip and an explicit negative signal.
     closePlay("skip", true);
-    if (queue.length === 0) return;
-    const prevIdx = currentIndex - 1 < 0 ? queue.length - 1 : currentIndex - 1;
+    const currentQueue = queueRef.current;
+    if (currentQueue.length === 0) return;
+    const previousIndex = currentIndexRef.current;
+    const prevIdx = previousIndex - 1 < 0 ? currentQueue.length - 1 : previousIndex - 1;
+    currentIndexRef.current = prevIdx;
     setCurrentIndex(prevIdx);
-    playTrack(queue[prevIdx]);
+    playTrack(currentQueue[prevIdx]);
   };
 
   const seek = (seconds: number) => {
@@ -1347,7 +1726,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const toggleShuffle = () => setIsShuffle((v) => !v);
+  const toggleShuffle = () => {
+    const next = !isShuffleRef.current;
+    isShuffleRef.current = next;
+    // The header/player toggle keeps the classic random-next behaviour; only
+    // the playlist Shuffle action marks the queue itself as shuffled.
+    shuffleQueueRef.current = false;
+    setIsShuffle(next);
+  };
   const toggleRepeat = () => setIsRepeat((v) => !v);
 
   // ── Like / Unlike ──────────────────────────────────────────────────────────
@@ -1610,80 +1996,84 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  // ── Downloads ──────────────────────────────────────────────────────────────
-  // The audio is stored on this device (IndexedDB); the *list* of downloaded
-  // songs is saved to the account so every device can see it.
-  const downloadTrack = async (track: Track): Promise<AuthResult> => {
-    const id = track.id;
-    const videoId = isValidVideoId(track.youtubeId) ? track.youtubeId : isValidVideoId(track.id) ? track.id : null;
-    if (!videoId) return { ok: false, error: "This song can't be downloaded." };
-    if (offlineIdsRef.current.has(id)) return { ok: true };
-    if (downloadProgress[id] !== undefined) return { ok: true }; // already in progress
+  // ── Downloads (mobile only) ───────────────────────────────────────────────
+  // The manager streams and stores real bytes; this context keeps the synced
+  // Downloads list in step with whatever is actually on this device.
+  const downloadsAvailable = () =>
+    typeof window === "undefined" || !window.matchMedia?.("(min-width: 640px)").matches;
 
-    setDownloadProgress((p) => ({ ...p, [id]: 0 }));
-    try {
-      const res = await fetch(`/api/download?videoId=${encodeURIComponent(videoId)}`);
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => null);
-        return { ok: false, error: err?.error || "Download failed." };
-      }
-
-      const total = Number(res.headers.get("Content-Length")) || 0;
-      const reader = res.body.getReader();
-      const chunks: Uint8Array<ArrayBuffer>[] = [];
-      let received = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value as Uint8Array<ArrayBuffer>);
-        received += value.length;
-        if (total > 0) setDownloadProgress((p) => ({ ...p, [id]: Math.min(0.99, received / total) }));
-      }
-      // A real song is far larger than this; a tiny body is an error page.
-      if (received < 20_000) return { ok: false, error: "Download failed." };
-
-      await saveOfflineAudio(id, new Blob(chunks, { type: res.headers.get("Content-Type") || "audio/mp4" }));
-      offlineIdsRef.current = new Set(offlineIdsRef.current).add(id);
-      setOfflineIds(new Set(offlineIdsRef.current));
-
-      setDownloads((prev) => {
-        const next = [track, ...prev.filter((t) => t.id !== id)];
-        lsSet("shubhu_downloads", JSON.stringify(next));
-        return next;
-      });
-      // If the server can't be reached, remember to send it later so the
-      // download isn't treated as removed by the next sync.
-      if (!(await postLibrary({ action: "add_download", track }))) {
-        const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
-        lsSet("shubhu_download_pending", JSON.stringify([track, ...pending.filter((t) => t.id !== id)]));
-      }
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : "Download failed." };
-    } finally {
-      setDownloadProgress((p) => {
-        const { [id]: _done, ...rest } = p;
-        void _done;
-        return rest;
-      });
+  const downloadTracks = async (
+    tracks: Track[],
+    group?: DownloadGroupInfo,
+  ): Promise<EnqueueResult> => {
+    if (!downloadsAvailable()) {
+      return {
+        added: [],
+        duplicates: [],
+        unavailable: tracks.map((track) => track.id),
+        batchId: "mobile-only",
+      };
     }
+    if (group) {
+      await downloadCollections.registerGroup(group, tracks);
+    }
+    return downloadManager.enqueue(tracks, group);
+  };
+
+  const downloadTrack = async (track: Track, group?: DownloadGroupInfo): Promise<AuthResult> => {
+    if (!downloadsAvailable()) {
+      return { ok: false, error: "Downloads are available in the mobile app only." };
+    }
+    if (!resolveDownloadSource(track)) {
+      return { ok: false, error: "This song has no legal download source available." };
+    }
+    if (group) {
+      await downloadCollections.registerGroup(group, [track]);
+    }
+    const result = await downloadManager.enqueue([track], group);
+    if (result.unavailable.length > 0) {
+      return { ok: false, error: "This song has no legal download source available." };
+    }
+    return { ok: true };
+  };
+
+  const retryDownload = (id: string) => downloadManager.retry(id);
+  const cancelDownload = (id: string) => downloadManager.cancel(id);
+  const clearFinishedDownloads = () => downloadManager.clearFinished();
+  const clearPlaybackError = () => setPlaybackError(null);
+  const hideDownloadTestPlaylist = () => {
+    lsSet(DOWNLOAD_TEST_PLAYLIST_HIDE_KEY, "1");
+    setDownloadTestPlaylistVisible(false);
   };
 
   const removeDownload = async (track: Track) => {
     const id = track.id;
     try {
-      await removeOfflineAudio(id);
-    } catch {}
-    offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((x) => x !== id));
+      await downloadManager.remove(id);
+      return;
+    } catch {
+      // Fall through to a local-only cleanup so the UI never gets stuck.
+    }
+    await downloadCollections.purgeTrack(id);
+    offlineIdsRef.current = new Set([...offlineIdsRef.current].filter((item) => item !== id));
     setOfflineIds(new Set(offlineIdsRef.current));
-    setDownloads((prev) => {
-      const next = prev.filter((t) => t.id !== id);
-      lsSet("shubhu_downloads", JSON.stringify(next));
-      return next;
-    });
+    const next = downloadsRef.current.filter((item) => item.id !== id);
+    downloadsRef.current = next;
+    setDownloads(next);
+    lsSet("shubhu_downloads", JSON.stringify(next));
     const pending = lsGetJSON<Track[]>("shubhu_download_pending", []);
-    lsSet("shubhu_download_pending", JSON.stringify(pending.filter((t) => t.id !== id)));
+    lsSet("shubhu_download_pending", JSON.stringify(pending.filter((item) => item.id !== id)));
     await postLibrary({ action: "remove_download", trackId: id });
+  };
+
+  /** Remove a reference only. The shared Blob stays available to other collections. */
+  const removeTrackFromDownloadCollection = async (collectionId: string, trackId: string) => {
+    await downloadCollections.removeFromCollection(collectionId, trackId);
+  };
+
+  /** Explicit permanent delete; kept separate from membership removal. */
+  const deleteDownloadedAudio = async (track: Track) => {
+    await removeDownload(track);
   };
 
   // ── Accounts (email + 4-digit PIN) ─────────────────────────────────────────
@@ -1722,6 +2112,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // audio, and the identity itself. A fresh guest id starts clean.
     resetLibraryState();
     await clearOfflineAudio().catch(() => {});
+    await downloadCollections.clear();
+    downloadManager.reset();
     offlineIdsRef.current = new Set();
     setOfflineIds(new Set());
     lsSet("shubhu_download_pending", "[]");
@@ -1768,14 +2160,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setAppQueue = (newQueue: Track[]) => {
-    // Only queue songs with valid videoId
+    // Keep normal YouTube tracks plus anything playable from this device.
     const validTracks = newQueue.filter((t) => {
-      const valid = isValidVideoId(t.youtubeId) || isValidVideoId(t.id);
+      const valid =
+        isValidVideoId(t.youtubeId) ||
+        isValidVideoId(t.id) ||
+        isDownloadTestTrack(t) ||
+        downloadManager.hasCompleted(t.id);
       if (!valid) {
         console.warn(`[Queue] Skipping invalid track "${t.title}" (id: ${t.id}, youtubeId: ${t.youtubeId})`);
       }
       return valid;
     });
+    shuffleQueueRef.current = false;
     setQueue(validTracks);
   };
 
@@ -1839,13 +2236,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         followedArtists, theme, mobileExpanded, playbackRate, availableRates,
         sleepEndsAt, sleepRemainingSeconds, sleepAtEndOfSong, sleepTimerNotice,
         setPlaybackRate, setMobileExpanded, setAppQueue, playNext,
-        playTrack, togglePlay, nextTrack, prevTrack,
+        playTrack, playShuffledQueue, togglePlay, nextTrack, prevTrack,
         seek, setVolume, toggleMute, toggleShuffle, toggleRepeat,
         selectSleepTimer, cancelSleepTimer,
         toggleLike, updateUser, refreshLibrary, createPlaylist, addToPlaylist,
         updatePlaylist, deletePlaylist, removeFromPlaylist, toggleSavedPlaylist,
         toggleFollowArtist, setTheme,
-        downloads, offlineIds, downloadProgress, downloadTrack, removeDownload,
+        downloads, offlineIds, downloadProgress, downloadJobs, downloadRecords,
+        downloadCollections: downloadCollectionsState,
+        downloadBatches, downloadOnline, playbackError, clearPlaybackError,
+        downloadTestPlaylist: DOWNLOAD_TEST_PLAYLIST,
+        downloadTestPlaylistVisible, hideDownloadTestPlaylist,
+        downloadTrack, downloadTracks, retryDownload, cancelDownload,
+        clearFinishedDownloads, removeTrackFromDownloadCollection,
+        deleteDownloadedAudio, removeDownload,
         signIn, signUp, signOut,
       }}
     >

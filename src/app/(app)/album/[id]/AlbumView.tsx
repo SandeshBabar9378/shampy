@@ -2,11 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Disc3, Play } from "lucide-react";
+import { ArrowLeft, Disc3, DownloadCloud, Play } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { TrackRow } from "@/components/TrackRow";
+import { DownloadStatusList } from "@/components/DownloadStatusList";
 import { Track } from "@/lib/types";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import { getDownloadTestAlbum } from "@/lib/testDownloadProvider";
+
+const TEST_ALBUM_ID = "download-test-samples";
 
 interface AlbumTrack {
   videoId: string;
@@ -36,16 +40,43 @@ function toTrack(item: AlbumTrack): Track {
   };
 }
 
+function testAlbumData(): AlbumData {
+  const album = getDownloadTestAlbum();
+  return {
+    title: album.title,
+    author: album.author,
+    thumbnail: album.coverUrl || getDefaultArtworkFallbackUrl(),
+    tracks: album.tracks.map((track) => ({
+      videoId: track.id,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      thumbnail: track.coverUrl,
+      duration: track.duration,
+    })),
+  };
+}
+
 export function AlbumView({ id }: { id: string }) {
-  const { playTrack } = usePlayer();
+  const { playTrack, downloadTracks, offlineIds } = usePlayer();
   const [album, setAlbum] = useState<AlbumData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setDownloadNotice(null);
+
+    if (id === TEST_ALBUM_ID) {
+      setAlbum(testAlbumData());
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     fetch(`/api/album?id=${encodeURIComponent(id)}`)
       .then(async (res) => {
@@ -70,7 +101,38 @@ export function AlbumView({ id }: { id: string }) {
     };
   }, [id]);
 
-  const tracks: Track[] = album ? album.tracks.map(toTrack) : [];
+  // Test fixtures keep their original Track fields (catalogue/API rows are lossy).
+  const testTracks = id === TEST_ALBUM_ID ? getDownloadTestAlbum().tracks : [];
+  const tracks: Track[] = testTracks.length > 0
+    ? testTracks
+    : album
+      ? album.tracks.map(toTrack)
+      : [];
+  const downloadedCount = tracks.filter((track) => offlineIds.has(track.id)).length;
+
+  const handleDownloadAlbum = async () => {
+    if (!album || tracks.length === 0) return;
+    const result = await downloadTracks(tracks, {
+      kind: "album",
+      id: `album:${id}`,
+      title: album.title,
+      index: 0,
+      total: tracks.length,
+      artworkUrl: album.thumbnail || undefined,
+      author: album.author || undefined,
+    });
+    if (result.unavailable.length === tracks.length) {
+      setDownloadNotice("No songs in this album have a legal download source.");
+    } else if (result.added.length > 0) {
+      setDownloadNotice(`Downloading ${result.added.length} of ${tracks.length} songs…`);
+    } else {
+      setDownloadNotice(
+        result.duplicates.length > 0
+          ? "Those songs are already downloaded or queued."
+          : "Nothing to download here.",
+      );
+    }
+  };
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
@@ -141,7 +203,22 @@ export function AlbumView({ id }: { id: string }) {
                     <Play className="w-6 h-6 fill-black ml-0.5" />
                   </button>
                 )}
+                {tracks.length > 0 && (
+                  <button
+                    onClick={() => void handleDownloadAlbum()}
+                    className="sm:hidden flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 cursor-pointer"
+                  >
+                    <DownloadCloud className="w-4 h-4" />
+                    Download Album
+                  </button>
+                )}
               </div>
+              {downloadNotice && (
+                <p className="sm:hidden text-xs text-emerald-300">{downloadNotice}</p>
+              )}
+              <p className="sm:hidden text-[11px] text-neutral-500">
+                {downloadedCount}/{tracks.length} songs downloaded on this device
+              </p>
 
               {/* Track list */}
               <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
@@ -156,6 +233,7 @@ export function AlbumView({ id }: { id: string }) {
                   ))
                 )}
               </div>
+              <DownloadStatusList tracks={tracks} />
             </div>
           )}
       </main>

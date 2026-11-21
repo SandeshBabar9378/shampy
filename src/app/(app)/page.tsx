@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Play,
   Pause,
@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
+  DownloadCloud,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,7 +37,8 @@ import { Track, Playlist } from "@/lib/types";
 import { FEATURED_PLAYLISTS, CURATED_TRACKS } from "@/lib/musicProvider";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { PlaylistCollage } from "@/components/PlaylistCollage";
-import { DOWNLOADS_ENABLED } from "@/lib/features";
+import { MobileDownloads } from "@/components/MobileDownloads";
+import { DOWNLOAD_TEST_NOTE } from "@/lib/testDownloadProvider";
 import { getDefaultArtworkFallbackUrl, getTrackArtworkFallbackUrl, getTrackArtworkUrl, getYouTubeArtworkUrl } from "@/lib/artwork";
 
 // Cinematic carousel per-offset values (index = distance from the active cover).
@@ -95,8 +97,8 @@ const LANGUAGE_PLAYLIST_MAP: Record<string, string[]> = {
 
 export default function Home() {
   const router = useRouter();
-  const { currentView, setCurrentView, searchQuery, setSearchQuery, openCreatePlaylist } = useAppShell();
-  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, toggleLike, queue, setAppQueue, deletePlaylist, downloads, offlineIds, downloadProgress, downloadTrack } = usePlayer();
+  const { currentView, setCurrentView, searchQuery, setSearchQuery, searchSubmitNonce, submitSearch, openCreatePlaylist } = useAppShell();
+  const { user, playlists, savedPlaylists, likedSongIds, followedArtists, playTrack, toggleLike, queue, setAppQueue, deletePlaylist, downloads, downloadTestPlaylist, downloadTestPlaylistVisible, downloadTracks } = usePlayer();
 
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [searchArtists, setSearchArtists] = useState<{ name: string; image: string; browseId: string }[]>([]);
@@ -105,6 +107,9 @@ export default function Home() {
   const [communityHomePlaylists, setCommunityHomePlaylists] = useState<{ browseId: string; title: string; author: string; thumbnail: string; isCommunity?: boolean }[]>([]);
   const [searchTopResult, setSearchTopResult] = useState<Track | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const searchRequestRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
+  const lastSubmittedSearchRef = useRef<{ query: string; nonce: number } | null>(null);
 
   const [homeTracks, setHomeTracks] = useState<Track[]>(CURATED_TRACKS);
   const [recommendations, setRecommendations] = useState<Track[]>([]);
@@ -116,6 +121,7 @@ export default function Home() {
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
   const [playlistSortKey, setPlaylistSortKey] = useState<"default" | "title" | "artist" | "duration">("default");
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [languagePreference, setLanguagePreference] = useState<string>("Hindi");
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -420,75 +426,107 @@ export default function Home() {
     return () => clearTimeout(timeout);
   }, [shareNotice]);
 
-  // Live search debounced
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setSearchArtists([]);
-      setSearchAlbums([]);
-      setSearchPlaylists([]);
-      setSearchTopResult(null);
+  const clearSearchResults = useCallback(() => {
+    searchRequestRef.current?.abort();
+    searchRequestRef.current = null;
+    setSearchResults([]);
+    setSearchArtists([]);
+    setSearchAlbums([]);
+    setSearchPlaylists([]);
+    setSearchTopResult(null);
+    setIsSearching(false);
+  }, []);
+
+  const runSearch = useCallback((rawQuery: string) => {
+    const trimmedQuery = rawQuery.trim();
+    if (!trimmedQuery) {
+      clearSearchResults();
       return;
     }
 
-    const timer = setTimeout(() => {
-      setIsSearching(true);
-      fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          const rawTracks: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }[] = Array.isArray(data)
-            ? data
-            : data.tracks || [];
-          const hasVideoId = (item: { videoId?: string; id?: string }) =>
-            Boolean(item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id)));
-          const toTrack = (item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }): Track => {
-            const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
-            return {
-              id: vid || item.id || "",
-              title: item.title,
-              artist: item.artist,
-              album: item.album || "",
-              coverUrl: item.thumbnail || item.coverUrl || getYouTubeArtworkUrl(vid, "max") || getDefaultArtworkFallbackUrl(),
-              duration: item.duration || 180,
-              youtubeId: vid,
-              artistId: item.artistId,
-            };
-          };
-          const mappedTracks: Track[] = rawTracks.filter(hasVideoId).map(toTrack);
-          setSearchResults(mappedTracks);
-          if (Array.isArray(data)) {
-            setSearchArtists([]);
-            setSearchAlbums([]);
-            setSearchPlaylists([]);
-            setSearchTopResult(null);
-          } else {
-            setSearchTopResult(
-              data.topResult && hasVideoId(data.topResult) ? toTrack(data.topResult) : mappedTracks[0] || null,
-            );
-            setSearchArtists(
-              (data.artists || []).map((artist: { name: string; thumbnail?: string; browseId?: string }) => ({
-                name: artist.name,
-                image: artist.thumbnail || "/placeholder.svg",
-                browseId: artist.browseId || "",
-              })),
-            );
-            setSearchAlbums(
-              (data.albums || []).map((album: { title: string; artist?: string; thumbnail?: string; browseId?: string }) => ({
-                title: album.title,
-                artist: album.artist || "",
-                cover: album.thumbnail || "/placeholder.svg",
-                browseId: album.browseId || "",
-              })),
-            );
-            setSearchPlaylists(data.playlists || []);
-          }
-          setIsSearching(false);
-        })
-        .catch(() => setIsSearching(false));
-    }, 350);
+    searchRequestRef.current?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = controller;
+    const requestId = ++searchRequestIdRef.current;
+    setIsSearching(true);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, { signal: controller.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (controller.signal.aborted || requestId !== searchRequestIdRef.current) return;
+
+        const rawTracks: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }[] = Array.isArray(data)
+          ? data
+          : data.tracks || [];
+        const hasVideoId = (item: { videoId?: string; id?: string }) =>
+          Boolean(item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id)));
+        const toTrack = (item: { videoId?: string; id?: string; title: string; artist: string; album?: string; thumbnail?: string; coverUrl?: string; duration?: number; artistId?: string }): Track => {
+          const vid = item.videoId || (item.id && /^[A-Za-z0-9_-]{11}$/.test(item.id) ? item.id : undefined);
+          return {
+            id: vid || item.id || "",
+            title: item.title,
+            artist: item.artist,
+            album: item.album || "",
+            coverUrl: item.thumbnail || item.coverUrl || getYouTubeArtworkUrl(vid, "max") || getDefaultArtworkFallbackUrl(),
+            duration: item.duration || 180,
+            youtubeId: vid,
+            artistId: item.artistId,
+          };
+        };
+        const mappedTracks: Track[] = rawTracks.filter(hasVideoId).map(toTrack);
+        setSearchResults(mappedTracks);
+        if (Array.isArray(data)) {
+          setSearchArtists([]);
+          setSearchAlbums([]);
+          setSearchPlaylists([]);
+          setSearchTopResult(null);
+        } else {
+          setSearchTopResult(
+            data.topResult && hasVideoId(data.topResult) ? toTrack(data.topResult) : mappedTracks[0] || null,
+          );
+          setSearchArtists(
+            (data.artists || []).map((artist: { name: string; thumbnail?: string; browseId?: string }) => ({
+              name: artist.name,
+              image: artist.thumbnail || "/placeholder.svg",
+              browseId: artist.browseId || "",
+            })),
+          );
+          setSearchAlbums(
+            (data.albums || []).map((album: { title: string; artist?: string; thumbnail?: string; browseId?: string }) => ({
+              title: album.title,
+              artist: album.artist || "",
+              cover: album.thumbnail || "/placeholder.svg",
+              browseId: album.browseId || "",
+            })),
+          );
+          setSearchPlaylists(data.playlists || []);
+        }
+        setIsSearching(false);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || requestId !== searchRequestIdRef.current) return;
+        console.error("Search failed", error);
+        setIsSearching(false);
+      });
+  }, [clearSearchResults]);
+
+  // Search only runs on explicit submission (Enter/Go/icon). Typing updates input only.
+  useEffect(() => {
+    if (currentView !== "search") return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      lastSubmittedSearchRef.current = null;
+      queueMicrotask(() => clearSearchResults());
+      return;
+    }
+    if (searchSubmitNonce === 0) return;
+    const previous = lastSubmittedSearchRef.current;
+    if (previous && previous.query === trimmed && previous.nonce === searchSubmitNonce) return;
+    lastSubmittedSearchRef.current = { query: trimmed, nonce: searchSubmitNonce };
+    queueMicrotask(() => runSearch(trimmed));
+  }, [clearSearchResults, currentView, runSearch, searchQuery, searchSubmitNonce]);
+
+  useEffect(() => () => searchRequestRef.current?.abort(), []);
 
   // Resolve custom playlist if in view
   const activeCustomPlaylist = currentView.startsWith("playlist:")
@@ -535,6 +573,27 @@ export default function Home() {
     if (additions.length > 0) setAppQueue([...queue, ...additions]);
     setPlaylistMenuOpen(false);
     setShareNotice("Added to queue");
+  };
+
+  const handleDownloadCustomPlaylist = async () => {
+    if (!activeCustomPlaylist?.tracks?.length) return;
+    const result = await downloadTracks(activeCustomPlaylist.tracks, {
+      kind: "playlist",
+      id: `playlist:${activeCustomPlaylist.id}`,
+      title: activeCustomPlaylist.name,
+      index: 0,
+      total: activeCustomPlaylist.tracks.length,
+      artworkUrl: activeCustomPlaylist.coverUrl || undefined,
+      author: activeCustomPlaylist.userId || undefined,
+      description: activeCustomPlaylist.description || undefined,
+    });
+    setDownloadNotice(
+      result.added.length > 0
+        ? `Downloading ${result.added.length} of ${activeCustomPlaylist.tracks.length} songs…`
+        : result.duplicates.length > 0
+          ? "Those songs are already downloaded or queued."
+          : "No songs here have a legal download source.",
+    );
   };
 
   const handleDeletePlaylist = async () => {
@@ -1774,7 +1833,7 @@ export default function Home() {
                       ].map((mood) => (
                         <button
                           key={mood.name}
-                          onClick={() => setSearchQuery(mood.query)}
+                          onClick={() => submitSearch(mood.query)}
                           className={`theme-dark-surface p-4 sm:p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
                         >
                           <span className="font-display font-bold text-base sm:text-lg text-white block">
@@ -1887,77 +1946,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* ===================== DOWNLOADS VIEW ===================== */}
-          {DOWNLOADS_ENABLED && currentView === "downloads" && (
-            <div className="space-y-6 animate-in fade-in duration-200">
-              <div
-                style={{
-                  background: `linear-gradient(
-                    180deg,
-                    var(--theme-accent-strong) 0%,
-                    var(--theme-accent) 40%,
-                    var(--color-neutral-950) 100%
-                  )`,
-                }}
-                className="theme-dark-surface flex flex-col sm:flex-row items-center sm:items-end gap-6 p-6 sm:p-8 rounded-3xl border border-white/10 shadow-2xl"
-              >
-                <div className="w-40 h-40 sm:w-[200px] sm:h-[200px] rounded-lg bg-white/20 backdrop-blur-md shadow-2xl flex items-center justify-center shrink-0 border border-white/20">
-                  <Download className="w-24 h-24 text-white" />
-                </div>
-                <div className="text-center sm:text-left flex-1 min-w-0">
-                  <p className="text-xs uppercase font-bold tracking-wider text-emerald-200">SYNCED WITH YOUR ACCOUNT</p>
-                  <h1 className="text-4xl sm:text-5xl font-black text-white mt-1 mb-3 tracking-tight">Downloads</h1>
-                  <p className="text-sm text-neutral-300 flex items-center justify-center sm:justify-start gap-2">
-                    <span className="font-semibold text-white">{user?.username || "You"}</span>
-                    <span>•</span>
-                    <span>{downloads.length} songs</span>
-                    <span>•</span>
-                    <span>{downloads.filter((t) => offlineIds.has(t.id)).length} on this device</span>
-                  </p>
-                </div>
-              </div>
-
-              {downloads.length > 0 && (
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => playTrack(downloads.find((t) => offlineIds.has(t.id)) ?? downloads[0], downloads)}
-                    className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
-                    title="Play downloads"
-                  >
-                    <Play className="w-6 h-6 fill-black ml-0.5" />
-                  </button>
-                  {downloads.some((t) => !offlineIds.has(t.id)) && (
-                    <button
-                      disabled={Object.keys(downloadProgress).length > 0}
-                      onClick={async () => {
-                        for (const t of downloads.filter((x) => !offlineIds.has(x.id))) {
-                          await downloadTrack(t);
-                        }
-                      }}
-                      className="flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-60 text-white px-4 py-2 rounded-full text-xs font-semibold border border-neutral-800 transition-colors cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      {Object.keys(downloadProgress).length > 0 ? "Downloading…" : "Download all to this device"}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
-                {downloads.length === 0 ? (
-                  <div className="py-20 text-center text-neutral-500">
-                    <Download className="w-20 h-20 mx-auto mb-4 opacity-40 text-neutral-400" />
-                    <p className="text-lg font-bold text-white">Songs you download will appear here</p>
-                    <p className="text-xs text-neutral-400 mt-1.5">
-                      Use the ⋮ menu on any song and choose Download. Sign in to see them on all your devices.
-                    </p>
-                  </div>
-                ) : (
-                  downloads.map((track, i) => (
-                    <TrackRow key={track.id} track={track} index={i} queue={downloads} />
-                  ))
-                )}
-              </div>
+          {/* ===================== DOWNLOADS VIEW (MOBILE ONLY) ===================== */}
+          {currentView === "downloads" && (
+            <div className="sm:hidden">
+              <MobileDownloads onBack={() => setCurrentView("library")} />
             </div>
           )}
 
@@ -1992,11 +1984,10 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Downloads Card */}
-                {DOWNLOADS_ENABLED && (
+                {/* Downloads Card — mobile Library only */}
                 <div
                   onClick={() => setCurrentView("downloads")}
-                  className="group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm hover:shadow-xl hover:scale-105"
+                  className="sm:hidden group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm hover:shadow-xl hover:scale-105"
                 >
                   <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 bg-gradient-to-br from-emerald-700 to-teal-400 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
                     <Download className="w-16 h-16 text-white shadow-xl" />
@@ -2004,6 +1995,31 @@ export default function Home() {
                   <h3 className="font-semibold text-white text-base truncate mb-1">Downloads</h3>
                   <p className="text-xs text-neutral-400 truncate">{mounted ? downloads.length : 0} songs</p>
                 </div>
+
+                {/* Temporary Download Test Playlist — mobile Library only */}
+                {mounted && downloadTestPlaylistVisible && (
+                  <div
+                    onClick={() => router.push(`/playlist/${downloadTestPlaylist.id}`)}
+                    className="sm:hidden group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-amber-400/30 hover:border-amber-300/60 shadow-sm hover:shadow-xl hover:scale-105"
+                  >
+                    <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 bg-neutral-800 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
+                      <img
+                        src={downloadTestPlaylist.coverUrl || getDefaultArtworkFallbackUrl()}
+                        alt={downloadTestPlaylist.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute left-2 top-2 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-black">
+                        TEST
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-white text-base truncate mb-1">
+                      {downloadTestPlaylist.name}
+                    </h3>
+                    <p className="text-xs text-amber-200/80 truncate">
+                      Temporary • {downloadTestPlaylist.tracks?.length || 0} songs
+                    </p>
+                    <p className="sr-only">{DOWNLOAD_TEST_NOTE}</p>
+                  </div>
                 )}
 
                 {/* Custom Playlists */}
@@ -2201,6 +2217,20 @@ export default function Home() {
                     >
                       <Play className="w-6 h-6 fill-black ml-0.5" />
                     </button>
+                  )}
+
+                  {activeCustomPlaylist.tracks && activeCustomPlaylist.tracks.length > 0 && (
+                    <button
+                      onClick={() => void handleDownloadCustomPlaylist()}
+                      className="sm:hidden flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-emerald-300 cursor-pointer"
+                    >
+                      <DownloadCloud className="w-4 h-4" />
+                      Download Playlist
+                    </button>
+                  )}
+
+                  {downloadNotice && (
+                    <span className="sm:hidden text-xs text-emerald-300 font-medium">{downloadNotice}</span>
                   )}
 
                   {shareNotice && (

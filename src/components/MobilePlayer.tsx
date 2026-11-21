@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Download,
+  DownloadCloud,
   GripVertical,
   Heart,
   ListMusic,
@@ -33,8 +34,7 @@ import {
 } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { useDownload } from "@/hooks/useDownload";
-import { DOWNLOADS_ENABLED } from "@/lib/features";
-import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
+import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
 import { parseLRC, type LyricLine } from "@/lib/lyrics";
 import { hasNonLatinLetters } from "@/lib/transcript";
 import { loadTranscripts } from "@/lib/transcriptClient";
@@ -85,6 +85,8 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     sleepAtEndOfSong,
     selectSleepTimer,
     cancelSleepTimer,
+    playbackError,
+    clearPlaybackError,
   } = usePlayer();
 
   const [view, setView] = useState<MobileView>("player");
@@ -174,7 +176,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const [stageWidth, setStageWidth] = useState(320);
 
   const toastTimer = useRef<number | null>(null);
-  const cover = getTrackArtworkUrl(currentTrack, "max");
+  const cover = getStableTrackArtworkUrl(currentTrack, "max");
   const dominantColor = useDominantColor(cover);
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
   const download = useDownload(currentTrack);
@@ -191,6 +193,12 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   }, []);
 
   useEffect(() => {
+    if (!playbackError) return;
+    queueMicrotask(() => showToast(playbackError));
+    clearPlaybackError();
+  }, [playbackError, clearPlaybackError, showToast]);
+
+  useEffect(() => {
     return () => {
       if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
       if (minimizeTimer.current !== null) window.clearTimeout(minimizeTimer.current);
@@ -200,14 +208,22 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
 
   // ── Dynamic artwork background: crossfade the outgoing cover into the new one ──
   const [exitingCover, setExitingCover] = useState<string | null>(null);
+  const trackKey = currentTrack?.id ?? "none";
+  const previousTrackKeyRef = useRef(trackKey);
   const previousCoverRef = useRef(cover);
   useEffect(() => {
-    if (previousCoverRef.current === cover) return;
+    // Only a different song crossfades. Metadata/URL changes for the same
+    // song (online ↔ offline) must never remount or replay the artwork.
+    if (previousTrackKeyRef.current === trackKey) {
+      previousCoverRef.current = cover;
+      return;
+    }
     setExitingCover(previousCoverRef.current);
     previousCoverRef.current = cover;
+    previousTrackKeyRef.current = trackKey;
     const timeout = window.setTimeout(() => setExitingCover(null), 700);
     return () => window.clearTimeout(timeout);
-  }, [cover]);
+  }, [trackKey, cover]);
 
   // ── Lyrics: fetch, sync and follow the active line ───────────────────────────
   useEffect(() => {
@@ -389,7 +405,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     ? Math.min(1, Math.abs(dragX) / Math.max(1, swipeThreshold))
     : 0;
   const neighbourSong = dragX < 0 ? nextSong : previousSong;
-  const neighbourUrl = getTrackArtworkUrl(neighbourSong, "max");
+  const neighbourUrl = getStableTrackArtworkUrl(neighbourSong, "max");
 
   // ── Menu / sheet handlers ────────────────────────────────────────────────────
   const closeOverlays = () => {
@@ -943,12 +959,12 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       onClick={() => (isCurrent ? togglePlay() : playTrack(track, queue))}
     >
       <img
-        src={getTrackArtworkUrl(track, "max")}
+        src={getStableTrackArtworkUrl(track, "max")}
         alt=""
         crossOrigin="anonymous"
         referrerPolicy="no-referrer"
         onError={(event) => {
-          event.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+          applyStableArtworkFallback(event.currentTarget);
         }}
       />
       <span className="shubhu-mp-queueMeta">
@@ -984,13 +1000,13 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       <div className="shubhu-mp-background" aria-hidden="true">
         {exitingCover && exitingCover !== cover && (
           <div
-            key={`bg-out-${exitingCover}`}
+            key={`bg-out-${trackKey}`}
             className={`shubhu-mp-bgLayer shubhu-mp-bgLayerOut`}
             style={{ backgroundImage: `url("${exitingCover}")` }}
           />
         )}
         <div
-          key={`bg-in-${cover}`}
+          key={`bg-in-${trackKey}`}
           className={`shubhu-mp-bgLayer shubhu-mp-bgLayerIn`}
           style={{ backgroundImage: `url("${cover}")` }}
         />
@@ -1036,7 +1052,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                   crossOrigin="anonymous"
                   referrerPolicy="no-referrer"
                   onError={(event) => {
-                    event.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                    applyStableArtworkFallback(event.currentTarget);
                   }}
                 />
                 <span className="shubhu-mp-lyricsTrackMeta">
@@ -1133,7 +1149,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                       referrerPolicy="no-referrer"
                       draggable={false}
                       onError={(event) => {
-                        event.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                        applyStableArtworkFallback(event.currentTarget);
                       }}
                     />
                     <button
@@ -1344,23 +1360,51 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
               className="shubhu-mp-menuItem"
               onClick={() => {
                 setShowMenu(false);
-                if (!DOWNLOADS_ENABLED) {
-                  showToast("Download is coming soon");
-                  return;
-                }
                 if (!currentTrack) return;
                 if (download.busy) {
                   showToast(download.label);
                   return;
                 }
-                if (!download.offline) showToast("Downloading…");
                 void download.toggle().then((message) => message && showToast(message));
               }}
               role="menuitem"
             >
-              <Download className="shubhu-mp-menuIcon" />
-              <span>{download.offline ? "Remove download" : download.inList ? "Download to this device" : "Download"}</span>
+              {download.offline ? <DownloadCloud className="shubhu-mp-menuIcon" /> : <Download className="shubhu-mp-menuIcon" />}
+              <span>
+                {download.offline
+                  ? "Remove download"
+                  : download.status === "failed"
+                    ? "Retry download"
+                    : download.inList
+                      ? "Download to this device"
+                      : "Download"}
+              </span>
             </button>
+            {download.busy && (
+              <div className="shubhu-mp-downloadMeta">
+                <div className="shubhu-mp-downloadTrack">
+                  <div
+                    className="shubhu-mp-downloadFill"
+                    style={{ width: `${Math.round((download.progress ?? 0) * 100)}%` }}
+                  />
+                </div>
+                <button
+                  className="shubhu-mp-downloadAction"
+                  onClick={() => {
+                    download.cancel();
+                    showToast("Download cancelled");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {download.error && (
+              <div className="shubhu-mp-downloadError">
+                <span>{download.error}</span>
+                <button onClick={download.clearError} aria-label="Dismiss error">×</button>
+              </div>
+            )}
             <button
               className="shubhu-mp-menuItem"
               onClick={toggleTranscript}
@@ -1436,7 +1480,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(event) => {
-                  event.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                  applyStableArtworkFallback(event.currentTarget);
                 }}
               />
               <span>
