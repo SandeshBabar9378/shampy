@@ -368,6 +368,8 @@
   transition: opacity 180ms ease-out;
 }
 
+/* The like control is only the heart itself — no pill, ring or tinted plate
+   behind it. It stays a 42px tap target so it is still easy to hit. */
 .shubhu-mp-likeFab {
   position: absolute;
   right: 12px;
@@ -377,12 +379,12 @@
   justify-content: center;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  background: rgba(12, 6, 22, 0.46);
-  backdrop-filter: blur(10px);
+  background: transparent;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease;
+  transition: transform 160ms ease;
 }
 
 .shubhu-mp-likeFab:hover {
@@ -390,8 +392,8 @@
 }
 
 .shubhu-mp-likeFabActive {
-  background: rgba(255, 77, 141, 0.2);
-  border-color: rgba(255, 77, 141, 0.4);
+  background: transparent;
+  border-color: transparent;
 }
 
 .shubhu-mp-songInfo {
@@ -501,10 +503,13 @@
   height: 20px;
 }
 
+/* ON state is colour + glow only. The old circular plate (background + ring
+   shadow on a 50%-radius button) read as a stray circle popping in behind the
+   icon, so the icon now carries the state on its own — same as desktop. */
 .shubhu-mp-controlActive {
   color: #d9c5ff;
-  background: rgba(201, 176, 255, 0.16);
-  box-shadow: 0 0 18px rgba(201, 176, 255, 0.22), inset 0 0 0 1px rgba(201, 176, 255, 0.3);
+  background: transparent;
+  box-shadow: none;
 }
 
 .shubhu-mp-controlSkip {
@@ -1605,10 +1610,13 @@
 }
 
 /* ── Misc ────────────────────────────────────────────────────────────────── */
+/* A soft shadow keeps the bare heart readable over bright artwork now that the
+   control no longer has a dark plate behind it. */
 .shubhu-mp-heart {
   width: 22px;
   height: 22px;
   color: #fff;
+  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.65));
 }
 
 .shubhu-mp-heartFilled {
@@ -1616,6 +1624,7 @@
   height: 22px;
   color: #ff4d8d;
   fill: #ff4d8d;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
 }
 
 .shubhu-mp-chevron {

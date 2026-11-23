@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Play, Pause, Heart, Plus, Check, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2, Download, DownloadCloud } from "lucide-react";
+import { Play, Pause, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2, Download, DownloadCloud } from "lucide-react";
+import { AnimatedHeart, AnimatedListPlus } from "@/components/animations/MotionIcons";
 import { useRouter } from "next/navigation";
 import { Track } from "@/lib/types";
 import { usePlayer } from "@/context/PlayerContext";
@@ -97,7 +98,8 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
     <>
       <div
         onClick={handlePlay}
-        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl transition-all select-none text-sm cursor-pointer ${
+        style={{ animationDelay: `${Math.min(index, 14) * 26}ms` }}
+        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl transition-all select-none text-sm cursor-pointer shubhu-row-in ${
           isCurrent
             ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
             : "hover:bg-white/5 border border-transparent"
@@ -183,12 +185,12 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
               e.stopPropagation();
               toggleLike(track);
             }}
-            className={`hidden md:block p-1.5 transition-colors cursor-pointer opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto ${
+            className={`hidden md:block shubhu-like-btn p-1.5 transition-colors cursor-pointer opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto ${
               isLiked ? "text-emerald-500" : "text-neutral-500 hover:text-white"
             }`}
             title={isLiked ? "Liked" : "Like"}
           >
-            <Heart className={`w-4 h-4 ${isLiked ? "fill-emerald-500" : ""}`} />
+            <AnimatedHeart filled={isLiked} className="w-4 h-4" />
           </button>
 
           {/* Desktop hover actions: Add to Playlist */}
@@ -198,10 +200,12 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                 e.stopPropagation();
                 setShowPlaylistMenu(!showPlaylistMenu);
               }}
-              className="p-1.5 text-neutral-500 hover:text-white transition-opacity cursor-pointer"
+              className={`p-1.5 transition-opacity cursor-pointer ${
+                addedSuccess ? "text-emerald-400" : "text-neutral-500 hover:text-white"
+              }`}
               title="Add to Playlist"
             >
-              {addedSuccess ? <Check className="w-4 h-4 text-emerald-400" /> : <Plus className="w-4 h-4" />}
+              <AnimatedListPlus added={addedSuccess} className="w-4 h-4" />
             </button>
 
             {showPlaylistMenu && (
@@ -346,9 +350,11 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                     toggleLike(track);
                     closeMenus();
                   }}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-neutral-800 flex items-center gap-2 cursor-pointer border-t border-neutral-800 mt-1"
+                  className="w-full text-left shubhu-like-btn px-2 py-1.5 rounded hover:bg-neutral-800 flex items-center gap-2 cursor-pointer border-t border-neutral-800 mt-1"
                 >
-                  <Heart className={`w-4 h-4 ${isLiked ? "fill-emerald-500 text-emerald-500" : ""}`} />
+                  <span className={isLiked ? "text-emerald-500" : ""}>
+                    <AnimatedHeart filled={isLiked} className="w-4 h-4" />
+                  </span>
                   {isLiked ? "Unlike" : "Like"}
                 </button>
               </div>
@@ -471,9 +477,11 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
                 </div>
                 <button
                   onClick={() => toggleLike(track)}
-                  className="flex items-center gap-3 text-left py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer"
+                  className="flex items-center gap-3 text-left shubhu-like-btn py-2 px-1 text-sm font-medium hover:text-emerald-400 cursor-pointer"
                 >
-                  <Heart className={`w-5 h-5 ${isLiked ? "fill-emerald-500 text-emerald-500" : ""}`} />
+                  <span className={isLiked ? "text-emerald-500" : ""}>
+                    <AnimatedHeart filled={isLiked} className="w-5 h-5" />
+                  </span>
                   <span>{isLiked ? "Unlike" : "Like"}</span>
                 </button>
                 {playlistId && (

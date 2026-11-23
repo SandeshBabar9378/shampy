@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, ListMusic, Play, Plus, Check, MoreVertical, Shuffle, X } from "lucide-react";
+import { ArrowLeft, Download, ListMusic, Play, Plus, Check, MoreVertical, X } from "lucide-react";
+import { AnimatedShuffle } from "@/components/animations/MotionIcons";
 import { usePlayer } from "@/context/PlayerContext";
 import { TrackRow } from "@/components/TrackRow";
 import { DownloadStatusList } from "@/components/DownloadStatusList";
@@ -304,7 +305,7 @@ export function PlaylistView({ id }: { id: string }) {
                       }`}
                       title={isShuffle ? "Shuffle is on" : "Shuffle Playlist"}
                     >
-                      <Shuffle className="w-5 h-5" />
+                      <AnimatedShuffle active={isShuffle} className="w-5 h-5" />
                     </button>
                   </>
                 )}

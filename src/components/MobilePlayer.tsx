@@ -9,7 +9,6 @@ import {
   Download,
   DownloadCloud,
   GripVertical,
-  Heart,
   ListMusic,
   Loader2,
   Moon,
@@ -19,9 +18,7 @@ import {
   Play,
   Plus,
   Quote,
-  Repeat,
   Share2,
-  Shuffle,
   SkipBack,
   SkipForward,
   Timer,
@@ -33,8 +30,15 @@ import {
   type SleepTimerOption,
 } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
+import {
+  AnimatedHeart,
+  AnimatedRepeat,
+  AnimatedShuffle,
+} from "@/components/animations/MotionIcons";
 import { useDownload } from "@/hooks/useDownload";
 import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
+import { Track } from "@/lib/types";
+import { ReorderableList } from "@/components/ReorderableList";
 import { parseLRC, type LyricLine } from "@/lib/lyrics";
 import { hasNonLatinLetters } from "@/lib/transcript";
 import { loadTranscripts } from "@/lib/transcriptClient";
@@ -78,6 +82,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     addToPlaylist,
     createPlaylist,
     queue,
+    setAppQueue,
     currentIndex,
     playTrack,
     sleepEndsAt,
@@ -342,6 +347,35 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const queueCurrentIndex = useMemo(
     () => queue.findIndex((track) => track.id === currentTrack?.id),
     [queue, currentTrack?.id],
+  );
+
+  // "Up Next" is the queue minus the track that is playing. Reordering that
+  // visible slice maps back onto the same free slots in the full queue, so the
+  // current track never shifts position while dragging around it.
+  const upNextTracks = useMemo(
+    () => queue.filter((_, index) => index !== queueCurrentIndex),
+    [queue, queueCurrentIndex],
+  );
+
+  const handleQueueReorder = useCallback(
+    (nextUpNext: Track[]) => {
+      if (queueCurrentIndex < 0) {
+        setAppQueue(nextUpNext);
+        return;
+      }
+
+      const slots: number[] = [];
+      for (let i = 0; i < queue.length; i += 1) {
+        if (i !== queueCurrentIndex) slots.push(i);
+      }
+
+      const next = [...queue];
+      slots.forEach((slot, position) => {
+        next[slot] = nextUpNext[position];
+      });
+      setAppQueue(next);
+    },
+    [queue, queueCurrentIndex, setAppQueue],
   );
 
   const previousSong = queue.length
@@ -915,7 +949,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
         aria-pressed={isShuffle}
         aria-label="Shuffle"
       >
-        <Shuffle />
+        <AnimatedShuffle active={isShuffle} className="" />
       </button>
       <button className="shubhu-mp-controlSkip" onClick={prevTrack} aria-label="Previous song">
         <SkipBack className="shubhu-mp-skipIcon" />
@@ -943,26 +977,19 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
         aria-pressed={isRepeat}
         aria-label="Repeat"
       >
-        <Repeat />
+        <AnimatedRepeat active={isRepeat} className="" />
       </button>
     </div>
   );
 
-  const renderQueueItem = (
-    track: (typeof queue)[number],
-    index: number,
-    isCurrent: boolean,
-  ) => (
-    <button
-      key={`${track.id}-${index}`}
-      className={`shubhu-mp-queueItem ${isCurrent ? "shubhu-mp-queueItemActive" : ""}`}
-      onClick={() => (isCurrent ? togglePlay() : playTrack(track, queue))}
-    >
+  const queueItemContent = (track: Track, isCurrent: boolean) => (
+    <>
       <img
         src={getStableTrackArtworkUrl(track, "max")}
         alt=""
         crossOrigin="anonymous"
         referrerPolicy="no-referrer"
+        draggable={false}
         onError={(event) => {
           applyStableArtworkFallback(event.currentTarget);
         }}
@@ -976,15 +1003,18 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
           <i /><i /><i />
         </span>
       ) : (
-        <GripVertical className="shubhu-mp-queueGripIcon" aria-hidden="true" />
+        <GripVertical
+          className="shubhu-mp-queueGripIcon shubhu-reorder-handle"
+          aria-hidden="true"
+        />
       )}
-    </button>
+    </>
   );
 
   return (
     <div
       data-theme-region="legacy-dark"
-      className={`shubhu-mp-root ${view === "lyrics" && lyricsExpanded ? "shubhu-mp-rootExpanded" : ""} ${
+      className={`shubhu-ui-controls shubhu-mp-root ${view === "lyrics" && lyricsExpanded ? "shubhu-mp-rootExpanded" : ""} ${
         minimizePhase === "dragging"
           ? "shubhu-mp-rootDragging"
           : minimizePhase === "settling"
@@ -1153,12 +1183,16 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                       }}
                     />
                     <button
-                      className={`shubhu-mp-likeFab ${isLiked ? "shubhu-mp-likeFabActive" : ""}`}
+                      className={`shubhu-mp-likeFab shubhu-like-btn ${isLiked ? "shubhu-mp-likeFabActive" : ""}`}
                       onClick={() => toggleLike(currentTrack)}
                       onPointerDown={(event) => event.stopPropagation()}
                       aria-label={isLiked ? "Remove from Liked Songs" : "Add to Liked Songs"}
                     >
-                      <Heart className={isLiked ? "shubhu-mp-heartFilled" : "shubhu-mp-heart"} />
+                      <AnimatedHeart
+                        filled={isLiked}
+                        className={isLiked ? "shubhu-mp-heartFilled" : "shubhu-mp-heart"}
+                        burstColor="#ff4d8d"
+                      />
                     </button>
                   </div>
                 </div>
@@ -1268,22 +1302,33 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                   <>
                     <p className="shubhu-mp-queueHeading">Now Playing</p>
                     <div className="shubhu-mp-queueNowPlaying">
-                      {renderQueueItem(
-                        queueCurrentIndex >= 0 ? queue[queueCurrentIndex] : currentTrack,
-                        queueCurrentIndex,
-                        true,
-                      )}
+                      {queue[queueCurrentIndex] || currentTrack ? (
+                        <button
+                          type="button"
+                          className="shubhu-mp-queueItem shubhu-mp-queueItemActive"
+                          onClick={togglePlay}
+                        >
+                          {queueItemContent(
+                            (queue[queueCurrentIndex] || currentTrack) as Track,
+                            true,
+                          )}
+                        </button>
+                      ) : null}
                     </div>
 
                     <p className="shubhu-mp-queueHeading shubhu-mp-queueHeadingNext">
                       Up Next
                     </p>
                     <div className="shubhu-mp-queueList">
-                      {queue.map((track, index) =>
-                        index === queueCurrentIndex
-                          ? null
-                          : renderQueueItem(track, index, false),
-                      )}
+                      <ReorderableList
+                        items={upNextTracks}
+                        itemKey={(track) => track.id}
+                        onReorder={handleQueueReorder}
+                        onRowClick={(track) => playTrack(track, queue)}
+                        rowClassName={() => "shubhu-mp-queueItem"}
+                      >
+                        {(track) => queueItemContent(track, false)}
+                      </ReorderableList>
                     </div>
                   </>
                 )}
@@ -1315,7 +1360,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
             onClick={toggleShuffle}
             aria-pressed={isShuffle}
           >
-            <Shuffle className="shubhu-mp-bottomIcon" />
+            <AnimatedShuffle active={isShuffle} className="shubhu-mp-bottomIcon" />
             <span>Shuffle</span>
           </button>
           <button
@@ -1342,14 +1387,18 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
             role="menu"
           >
             <button
-              className="shubhu-mp-menuItem"
+              className="shubhu-mp-menuItem shubhu-like-btn"
               onClick={() => {
                 toggleLike(currentTrack);
                 setShowMenu(false);
               }}
               role="menuitem"
             >
-              <Heart className={`shubhu-mp-menuIcon ${isLiked ? "shubhu-mp-menuIconActive" : ""}`} />
+              <AnimatedHeart
+                filled={isLiked}
+                className={`shubhu-mp-menuIcon ${isLiked ? "shubhu-mp-menuIconActive" : ""}`}
+                burstColor="#ff4d8d"
+              />
               <span>Like</span>
             </button>
             <button className="shubhu-mp-menuItem" onClick={openPlaylistSheet} role="menuitem">

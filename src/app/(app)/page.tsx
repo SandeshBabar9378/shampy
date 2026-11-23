@@ -1149,7 +1149,7 @@ export default function Home() {
                                             }
                                             void toggleLike(track);
                                           }}
-                                          className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center text-white bg-black/20 backdrop-blur-sm cursor-pointer sm:hidden"
+                                          className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full shubhu-like-btn flex items-center justify-center text-white bg-black/20 backdrop-blur-sm cursor-pointer sm:hidden"
                                           title="Save to Liked Songs"
                                         >
                                           <Heart className={`w-6 h-6 ${likedSongIds.has(track.id) ? "fill-white" : ""}`} />

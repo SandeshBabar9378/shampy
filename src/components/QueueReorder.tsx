@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { ChevronUp, ChevronDown, ListMusic, X } from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical, ListMusic, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
-import { Track } from "@/lib/types";
+import { ReorderableList } from "@/components/ReorderableList";
 
 interface QueueReorderProps {
   onClose?: () => void;
@@ -36,23 +36,27 @@ export function QueueReorder({ onClose }: QueueReorderProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-        {queue.length === 0 ? (
-          <p className="text-xs text-neutral-500 py-4 text-center">Queue is empty</p>
-        ) : (
-          queue.map((track: Track, idx: number) => {
+      {queue.length === 0 ? (
+        <p className="text-xs text-neutral-500 py-4 text-center">Queue is empty</p>
+      ) : (
+        <ReorderableList
+          items={queue}
+          itemKey={(track) => track.id}
+          onReorder={setAppQueue}
+          onRowClick={(track) => playTrack(track)}
+          className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar"
+          rowClassName={(index) => {
+            const isPlaying = queue[index]?.id === currentTrack?.id;
+            return `flex items-center justify-between gap-2 p-1.5 rounded-lg text-xs transition-colors ${
+              isPlaying ? "bg-white/10 text-emerald-400" : "hover:bg-neutral-800/80 text-neutral-300"
+            }`;
+          }}
+        >
+          {(track, idx) => {
             const isPlaying = track.id === currentTrack?.id;
             return (
-              <div
-                key={`${track.id}-${idx}`}
-                className={`flex items-center justify-between gap-2 p-1.5 rounded-lg text-xs transition-colors ${
-                  isPlaying ? "bg-white/10 text-emerald-400" : "hover:bg-neutral-800/80 text-neutral-300"
-                }`}
-              >
-                <div
-                  className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
-                  onClick={() => playTrack(track)}
-                >
+              <>
+                <div className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
                   <span className="text-[10px] text-neutral-500 w-4 text-center font-mono">{idx + 1}</span>
                   <div className="min-w-0 flex-1">
                     <p className={`truncate font-medium ${isPlaying ? "text-emerald-400" : "text-white"}`}>
@@ -63,28 +67,34 @@ export function QueueReorder({ onClose }: QueueReorderProps) {
                 </div>
 
                 <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    disabled={idx === 0}
-                    onClick={() => handleMove(idx, "up")}
-                    className="p-1 hover:text-white text-neutral-400 disabled:opacity-20 cursor-pointer disabled:cursor-default"
-                    title="Move up"
+                  <GripVertical className="shubhu-reorder-handle w-3.5 h-3.5 text-neutral-500 mr-0.5" aria-hidden="true" />
+                  <div
+                    className="flex items-center gap-0.5"
+                    onPointerDown={(event) => event.stopPropagation()}
                   >
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    disabled={idx === queue.length - 1}
-                    onClick={() => handleMove(idx, "down")}
-                    className="p-1 hover:text-white text-neutral-400 disabled:opacity-20 cursor-pointer disabled:cursor-default"
-                    title="Move down"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
+                    <button
+                      disabled={idx === 0}
+                      onClick={() => handleMove(idx, "up")}
+                      className="p-1 hover:text-white text-neutral-400 disabled:opacity-20 cursor-pointer disabled:cursor-default"
+                      title="Move up"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      disabled={idx === queue.length - 1}
+                      onClick={() => handleMove(idx, "down")}
+                      className="p-1 hover:text-white text-neutral-400 disabled:opacity-20 cursor-pointer disabled:cursor-default"
+                      title="Move down"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>
             );
-          })
-        )}
-      </div>
+          }}
+        </ReorderableList>
+      )}
     </div>
   );
 }

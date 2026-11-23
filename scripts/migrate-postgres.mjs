@@ -15,6 +15,7 @@ const REQUIRED_TABLES = [
   "track_features",
   "user_profile",
   "recommendation_slate",
+  "downloads",
 ];
 
 const REQUIRED_INDEXES = [
@@ -30,6 +31,7 @@ const PRESERVED_TABLES = [
   "playlists",
   "playlist_songs",
   "listening_history",
+  "downloads",
 ];
 
 function fail(message) {
@@ -106,7 +108,8 @@ try {
        (SELECT count(*) FROM users)::int AS users,
        (SELECT count(*) FROM liked_songs)::int AS liked_songs,
        (SELECT count(*) FROM playlists)::int AS playlists,
-       (SELECT count(*) FROM listening_history)::int AS listening_history`,
+       (SELECT count(*) FROM listening_history)::int AS listening_history,
+       (SELECT count(*) FROM downloads)::int AS downloads`,
   );
   console.log(`existing data: ${JSON.stringify(counts[0])}`);
 } catch (err) {

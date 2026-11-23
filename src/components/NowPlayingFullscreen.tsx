@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Disc3,
   GripVertical,
-  Heart,
   ListEnd,
   ListMusic,
   ListPlus,
@@ -20,16 +19,18 @@ import {
   Loader2,
   Moon,
   MoreVertical,
-  Pause,
-  Play,
   Quote,
-  Repeat,
-  Shuffle,
   SkipBack,
   SkipForward,
   Volume1,
   Volume2,
 } from "lucide-react";
+import {
+  AnimatedHeart,
+  AnimatedPlayPause,
+  AnimatedRepeat,
+  AnimatedShuffle,
+} from "@/components/animations/MotionIcons";
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
@@ -40,6 +41,7 @@ import {
   isValidTranscriptList,
 } from "@/lib/transcript";
 import { SleepTimer } from "@/components/SleepTimer";
+import { ReorderableList } from "@/components/ReorderableList";
 import { Track } from "@/lib/types";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 
@@ -169,6 +171,22 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   const [panelHeight, setPanelHeight] = useState(0);
   const [isManual, setIsManual] = useState(false);
   const [metricsVersion, setMetricsVersion] = useState(0);
+
+  // Keep the overlay mounted through its exit animation. `mounted` stays true
+  // while the closing transition runs; `visible` covers the opening render.
+  const [mounted, setMounted] = useState(isOpen);
+  const closing = !isOpen && mounted;
+  const visible = isOpen || mounted;
+
+  useEffect(() => {
+    if (isOpen) {
+      setMounted(true);
+      return;
+    }
+    if (!mounted) return;
+    const timer = window.setTimeout(() => setMounted(false), 260);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, mounted]);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -460,7 +478,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
 
   const coverTracks = useMemo(() => queue, [queue]);
 
-  if (!isOpen || !currentTrack) return null;
+  if (!visible || !currentTrack) return null;
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsSeeking(true);
@@ -503,7 +521,12 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   };
 
   return (
-    <div data-theme-region="legacy-dark" className="fixed inset-0 z-[70] h-[100dvh] bg-[#08090a] text-white select-none overflow-hidden overflow-x-hidden">
+    <div
+      data-theme-region="legacy-dark"
+      className={`shubhu-ui-controls fixed inset-0 z-[70] h-[100dvh] bg-[#08090a] text-white select-none overflow-hidden overflow-x-hidden ${
+        closing ? "shubhu-np-exit" : "shubhu-np-enter"
+      }`}
+    >
       {/* Blurred cover background, faded on song change */}
       <div key={currentTrack.id} className="absolute inset-0 shubhu-bg-fade pointer-events-none">
         <div
@@ -519,7 +542,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
       </div>
 
       {/* Inner rounded frame */}
-      <div className="relative z-10 h-full w-full md:p-3">
+      <div className="shubhu-np-frame relative z-10 h-full w-full md:p-3">
         <div className="flex h-full w-full flex-col overflow-hidden overscroll-contain rounded-none md:rounded-3xl border-0 md:border md:border-white/10 bg-black/25 backdrop-blur-sm">
           {/* Top bar */}
           <header className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0">
@@ -618,12 +641,12 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   <div className="flex items-center gap-1 shrink-0 absolute right-0 -top-1 md:static md:right-auto md:top-auto">
                     <button
                       onClick={() => toggleLike(currentTrack)}
-                      className={`p-2 rounded-full transition-colors cursor-pointer ${
+                      className={`shubhu-like-btn p-2 rounded-full transition-colors cursor-pointer ${
                         isLiked ? "text-emerald-400" : "text-neutral-300 hover:text-white hover:bg-white/5"
                       }`}
                       title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
                     >
-                      <Heart className={`w-5 h-5 ${isLiked ? "fill-emerald-400" : ""}`} />
+                      <AnimatedHeart filled={isLiked} className="w-5 h-5" burstColor="#34d399" />
                     </button>
                     <button
                       onClick={() => {
@@ -716,7 +739,9 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                         }}
                         className="w-full text-left px-2.5 py-2 rounded hover:bg-neutral-800 flex items-center gap-2 cursor-pointer border-t border-neutral-800 mt-1"
                       >
-                        <Heart className={`w-4 h-4 ${isLiked ? "fill-emerald-400 text-emerald-400" : ""}`} />
+                        <span className={isLiked ? "text-emerald-400" : ""}>
+                          <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="#34d399" />
+                        </span>
                         {isLiked ? "Unlike" : "Like"}
                       </button>
                     </div>
@@ -770,7 +795,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   }`}
                   title={isShuffle ? "Shuffle on" : "Shuffle off"}
                 >
-                  <Shuffle className="w-5 h-5" />
+                  <AnimatedShuffle active={isShuffle} className="w-5 h-5" />
                   {isShuffle && (
                     <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
                   )}
@@ -790,10 +815,8 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                 >
                   {isResolving ? (
                     <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : isPlaying ? (
-                    <Pause className="w-6 h-6 fill-black" />
                   ) : (
-                    <Play className="w-6 h-6 fill-black ml-0.5" />
+                    <AnimatedPlayPause playing={isPlaying} className="w-6 h-6 text-black" />
                   )}
                 </button>
                 <button
@@ -813,7 +836,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   }`}
                   title={isRepeat ? "Repeat on" : "Repeat off"}
                 >
-                  <Repeat className="w-5 h-5" />
+                  <AnimatedRepeat active={isRepeat} className="w-5 h-5" />
                   {isRepeat && (
                     <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
                   )}
@@ -912,49 +935,58 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                         <p className="text-sm font-semibold text-neutral-300">Queue is empty</p>
                       </div>
                     ) : (
-                      <div className="space-y-1">
-                        {coverTracks.map((track, index) => {
+                      <ReorderableList
+                        items={coverTracks}
+                        itemKey={(track) => track.id}
+                        onReorder={setAppQueue}
+                        onRowClick={(track) => playQueueTrack(track)}
+                        className="space-y-1"
+                        rowClassName={(index, state) => {
+                          const isCurrent = coverTracks[index]?.id === currentTrack.id;
+                          return `w-full flex items-center gap-3 p-2 rounded-xl text-left border ${
+                            state.isDragging
+                              ? "bg-neutral-800/95 border-neutral-600 text-white shadow-2xl"
+                              : isCurrent
+                                ? "bg-emerald-500/15 border-emerald-500/20 text-emerald-400"
+                                : "hover:bg-white/5 border-transparent text-neutral-200"
+                          }`;
+                        }}
+                      >
+                        {(track) => {
                           const isCurrent = track.id === currentTrack.id;
                           return (
-                            <button
-                              key={`${track.id}-${index}`}
-                              onClick={() => playQueueTrack(track)}
-                              className={`w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors ${
-                                isCurrent
-                                  ? "bg-emerald-500/15 border border-emerald-500/20 text-emerald-400"
-                                  : "hover:bg-white/5 border border-transparent text-neutral-200"
-                              }`}
-                            >
+                            <>
                               <img
                                 src={getTrackArtworkUrl(track, "max")}
                                 alt={track.title}
                                 crossOrigin="anonymous"
                                 referrerPolicy="no-referrer"
+                                draggable={false}
                                 onError={(e) => {
                                   e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
                                 }}
-                                className="w-10 h-10 rounded-lg object-cover bg-neutral-800 shrink-0"
+                                className="w-10 h-10 rounded-lg object-cover bg-neutral-800 shrink-0 pointer-events-none"
                               />
-                              <div className="min-w-0 flex-1">
+                              <div className="min-w-0 flex-1 pointer-events-none">
                                 <p className={`text-sm font-semibold truncate ${isCurrent ? "text-emerald-400" : "text-white"}`}>
                                   {track.title}
                                 </p>
                                 <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
                               </div>
-                              <span className="text-[11px] text-neutral-500 font-mono tabular-nums shrink-0">
+                              <span className="text-[11px] text-neutral-500 font-mono tabular-nums shrink-0 pointer-events-none">
                                 {formatTime(track.duration)}
                               </span>
                               <span
-                                className="text-neutral-500 shrink-0"
-                                title="Reorder not implemented"
-                                aria-label="Reorder not implemented"
+                                className="shubhu-reorder-handle text-neutral-500 hover:text-white shrink-0 p-1 -m-1"
+                                title="Hold and drag to reorder"
+                                aria-label="Hold and drag to reorder"
                               >
                                 <GripVertical className="w-4 h-4" />
                               </span>
-                            </button>
+                            </>
                           );
-                        })}
-                      </div>
+                        }}
+                      </ReorderableList>
                     )}
                   </div>
                 )}

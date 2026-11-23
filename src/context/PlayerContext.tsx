@@ -5,6 +5,7 @@ import { Track, Playlist, UserProfile, SavedPlaylist, FollowedArtist } from "@/l
 import { CURATED_TRACKS } from "@/lib/musicProvider";
 import { getSimilarSongs } from "@/lib/similarity";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import { MOBILE_DOWNLOADS_ENABLED } from "@/lib/features";
 import { isValidVideoId } from "@/lib/videoId";
 import {
   getOfflineAudio,
@@ -2000,7 +2001,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // The manager streams and stores real bytes; this context keeps the synced
   // Downloads list in step with whatever is actually on this device.
   const downloadsAvailable = () =>
-    typeof window === "undefined" || !window.matchMedia?.("(min-width: 640px)").matches;
+    MOBILE_DOWNLOADS_ENABLED &&
+    (typeof window === "undefined" || !window.matchMedia?.("(min-width: 640px)").matches);
 
   const downloadTracks = async (
     tracks: Track[],
@@ -2174,6 +2176,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
     shuffleQueueRef.current = false;
     setQueue(validTracks);
+
+    // Reordering the queue must not silently change which track is "current".
+    // Keep the index pointing at the playing track so Next/Previous stay sane.
+    if (currentTrack) {
+      const playingIndex = validTracks.findIndex((track) => track.id === currentTrack.id);
+      if (playingIndex !== -1 && playingIndex !== currentIndexRef.current) {
+        currentIndexRef.current = playingIndex;
+        setCurrentIndex(playingIndex);
+      }
+    }
   };
 
   // ── Lock screen / notification / headset controls (Media Session API) ─────

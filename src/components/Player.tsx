@@ -2,10 +2,8 @@
 
 import React, { useState } from "react";
 import {
-  Play, Pause, SkipBack, SkipForward,
-  Shuffle, Repeat, Volume2, VolumeX,
-  Heart, Loader2, ListPlus, Check,
-  Mic2, Moon, ListMusic, Maximize2
+  SkipBack, SkipForward, Volume2, VolumeX,
+  Loader2, Mic2, Moon, ListMusic, Maximize2
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
@@ -15,6 +13,13 @@ import {
   getTrackArtworkUrl,
   getStableTrackArtworkUrl,
 } from "@/lib/artwork";
+import {
+  AnimatedHeart,
+  AnimatedListPlus,
+  AnimatedPlayPause,
+  AnimatedRepeat,
+  AnimatedShuffle,
+} from "@/components/animations/MotionIcons";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MobilePlayer } from "@/components/MobilePlayer";
 import { NowPlayingFullscreen } from "@/components/NowPlayingFullscreen";
@@ -103,7 +108,7 @@ export function Player({ embedded = false }: PlayerProps) {
           )`,
           backdropFilter: "blur(24px)",
         }}
-        className={`hidden sm:flex ${positionClasses} h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
+        className={`hidden sm:flex ${positionClasses} shubhu-ui-controls h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
       >
 
         {/* LEFT — track info */}
@@ -143,12 +148,18 @@ export function Player({ embedded = false }: PlayerProps) {
           </div>
           <button
             onClick={() => toggleLike(currentTrack)}
-            className={`p-1.5 transition-transform active:scale-90 cursor-pointer shrink-0 ${
+            className={`player-like-btn shubhu-like-btn p-1.5 transition-transform active:scale-90 cursor-pointer shrink-0 ${
               isLiked ? "text-emerald-500" : "text-neutral-400 hover:text-white"
             }`}
             title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
+            aria-pressed={isLiked}
+            aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
           >
-            <Heart className={`w-5 h-5 ${isLiked ? "fill-emerald-500" : ""}`} />
+            <AnimatedHeart
+              filled={isLiked}
+              className="w-5 h-5"
+              burstColor={isLiked ? "#10b981" : undefined}
+            />
           </button>
         </div>
 
@@ -158,19 +169,20 @@ export function Player({ embedded = false }: PlayerProps) {
             {/* Shuffle */}
             <button
               onClick={toggleShuffle}
-              title="Shuffle"
-              className={`relative cursor-pointer transition-colors ${
-                isShuffle ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+              title={isShuffle ? "Shuffle on" : "Shuffle off"}
+              aria-pressed={isShuffle}
+              className={`relative cursor-pointer transition-colors active:scale-90 ${
+                isShuffle ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
             >
-              <Shuffle className="w-4 h-4" />
+              <AnimatedShuffle active={isShuffle} className="w-4 h-4" />
               {isShuffle && (
                 <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-400 rounded-full" />
               )}
             </button>
 
             <button onClick={prevTrack} title="Previous"
-              className="text-neutral-400 hover:text-white cursor-pointer active:scale-90 transition-transform">
+              className="text-white hover:text-white/80 cursor-pointer active:scale-90 transition-transform">
               <SkipBack className="w-5 h-5 fill-current" />
             </button>
 
@@ -178,27 +190,27 @@ export function Player({ embedded = false }: PlayerProps) {
               onClick={togglePlay}
               disabled={isResolving}
               title={isPlaying ? "Pause" : "Play"}
+              aria-label={isPlaying ? "Pause" : "Play"}
               className="w-9 h-9 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer disabled:opacity-60"
             >
-              {isPlaying
-                ? <Pause className="w-4 h-4 fill-black text-black" />
-                : <Play className="w-4 h-4 fill-black text-black ml-0.5" />}
+              <AnimatedPlayPause playing={isPlaying} className="w-4 h-4 text-black" />
             </button>
 
             <button onClick={nextTrack} title="Next"
-              className="text-neutral-400 hover:text-white cursor-pointer active:scale-90 transition-transform">
+              className="text-white hover:text-white/80 cursor-pointer active:scale-90 transition-transform">
               <SkipForward className="w-5 h-5 fill-current" />
             </button>
 
             {/* Repeat */}
             <button
               onClick={toggleRepeat}
-              title="Repeat"
-              className={`relative cursor-pointer transition-colors ${
-                isRepeat ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+              title={isRepeat ? "Repeat on" : "Repeat off"}
+              aria-pressed={isRepeat}
+              className={`relative cursor-pointer transition-colors active:scale-90 ${
+                isRepeat ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
             >
-              <Repeat className="w-4 h-4" />
+              <AnimatedRepeat active={isRepeat} className="w-4 h-4" />
               {isRepeat && (
                 <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-400 rounded-full" />
               )}
@@ -227,7 +239,7 @@ export function Player({ embedded = false }: PlayerProps) {
 
         {/* RIGHT — volume + controls */}
         <div className="flex items-center justify-end gap-1.5 lg:gap-2 w-[28%] min-w-[170px]">
-          <button onClick={toggleMute} className="text-neutral-400 hover:text-white cursor-pointer transition-colors">
+          <button onClick={toggleMute} className="text-white hover:text-white/80 cursor-pointer transition-colors">
             {isMuted || volume === 0
               ? <VolumeX className="w-5 h-5 text-red-400" />
               : <Volume2 className="w-5 h-5" />}
@@ -256,7 +268,7 @@ export function Player({ embedded = false }: PlayerProps) {
                 setShowNowPlaying(false);
               }}
               className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
-                showLyrics ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+                showLyrics ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
               title="Lyrics"
             >
@@ -270,7 +282,7 @@ export function Player({ embedded = false }: PlayerProps) {
                 setShowSleepTimer(false);
               }}
               className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
-                showQueue ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+                showQueue ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
               title="Queue"
             >
@@ -282,7 +294,7 @@ export function Player({ embedded = false }: PlayerProps) {
                 <button
                   onClick={toggleSleepTimerMenu}
                   className={`p-1.5 cursor-pointer transition-colors ${
-                    showSleepTimer ? "text-emerald-400" : "text-neutral-400 hover:text-white"
+                    showSleepTimer ? "text-emerald-400" : "text-white hover:text-white/80"
                   }`}
                   title="Sleep Timer"
                 >
@@ -296,14 +308,13 @@ export function Player({ embedded = false }: PlayerProps) {
 
             <button
               onClick={() => setShowPlaylistDropdown(!showPlaylistDropdown)}
-              className="hidden xl:block p-1.5 text-neutral-400 hover:text-white cursor-pointer transition-colors"
+              className={`hidden xl:block p-1.5 cursor-pointer transition-colors ${
+                addedSuccess ? "text-emerald-400" : "text-white hover:text-white/80"
+              }`}
               title="Add to Playlist"
+              aria-label="Add to Playlist"
             >
-              {addedSuccess ? (
-                <Check className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <ListPlus className="w-4 h-4" />
-              )}
+              <AnimatedListPlus added={addedSuccess} className="w-4 h-4" />
             </button>
 
             <button
@@ -313,7 +324,7 @@ export function Player({ embedded = false }: PlayerProps) {
                 setShowSleepTimer(false);
                 setShowQueue(false);
               }}
-              className="p-1.5 cursor-pointer text-neutral-400 hover:text-white transition-colors"
+              className="p-1.5 cursor-pointer text-white hover:text-white/80 transition-colors"
               title="Now Playing"
             >
               <Maximize2 className="w-4 h-4" />
@@ -380,7 +391,7 @@ export function Player({ embedded = false }: PlayerProps) {
           desktop footer and NowPlayingFullscreen remain untouched.
       ══════════════════════════════════════════════════════════════════════ */}
       <div
-        className={`sm:hidden fixed bottom-14 left-0 right-0 z-40 px-3 pb-1 ${
+        className={`sm:hidden fixed bottom-14 left-0 right-0 z-40 px-3 pb-1 shubhu-ui-controls ${
           mobileExpanded ? "pointer-events-none" : ""
         }`}
       >
@@ -411,9 +422,10 @@ export function Player({ embedded = false }: PlayerProps) {
             </div>
             <button
               onClick={togglePlay}
-              className="w-8 h-8 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center shrink-0 cursor-pointer"
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="w-8 h-8 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-transform"
             >
-              {isPlaying ? <Pause className="w-4 h-4 fill-black" /> : <Play className="w-4 h-4 fill-black ml-0.5" />}
+              <AnimatedPlayPause playing={isPlaying} className="w-4 h-4 text-black" />
             </button>
             <button onClick={nextTrack} className="text-neutral-400 cursor-pointer p-1">
               <SkipForward className="w-5 h-5 fill-current" />

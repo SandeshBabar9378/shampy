@@ -2,9 +2,15 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import {
-  X, Mic2, Play, Pause, SkipBack, SkipForward, Shuffle, Repeat,
-  Volume2, VolumeX, Moon, ListPlus, ListMusic, Heart, Check,
+  X, Mic2, SkipBack, SkipForward,
+  Volume2, VolumeX, Moon, ListPlus, ListMusic, Check,
 } from "lucide-react";
+import {
+  AnimatedHeart,
+  AnimatedPlayPause,
+  AnimatedRepeat,
+  AnimatedShuffle,
+} from "@/components/animations/MotionIcons";
 import { usePlayer } from "@/context/PlayerContext";
 import { parseLRC } from "@/lib/lyrics";
 import {
@@ -249,7 +255,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
   const cover = getTrackArtworkUrl(currentTrack, "max");
 
   return (
-    <div data-theme-region="legacy-dark" className="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white select-none overflow-hidden animate-in fade-in duration-300">
+    <div data-theme-region="legacy-dark" className="shubhu-ui-controls fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white select-none overflow-hidden animate-in fade-in duration-300">
       {/* Dynamic blurred background from artwork */}
       <div
         className="absolute inset-0 bg-cover bg-center opacity-25 blur-3xl scale-125 pointer-events-none transition-all duration-1000"
@@ -469,12 +475,12 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
           {currentTrack && (
             <button
               onClick={() => toggleLike(currentTrack)}
-              className={`p-1.5 transition-colors cursor-pointer shrink-0 ${
+              className={`shubhu-like-btn p-1.5 transition-colors cursor-pointer shrink-0 ${
                 isLiked ? "text-emerald-400" : "text-neutral-400 hover:text-white"
               }`}
               title={isLiked ? "Liked" : "Like"}
             >
-              <Heart className={`w-4 h-4 ${isLiked ? "fill-emerald-400" : ""}`} />
+              <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="#34d399" />
             </button>
           )}
         </div>
@@ -489,7 +495,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               }`}
               title="Shuffle"
             >
-              <Shuffle className="w-4 h-4" />
+              <AnimatedShuffle active={isShuffle} className="w-4 h-4" />
             </button>
 
             <button
@@ -505,11 +511,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               className="w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
               title={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? (
-                <Pause className="w-5 h-5 fill-black" />
-              ) : (
-                <Play className="w-5 h-5 fill-black ml-0.5" />
-              )}
+              <AnimatedPlayPause playing={isPlaying} className="w-5 h-5 text-black" />
             </button>
 
             <button
@@ -527,7 +529,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               }`}
               title="Repeat"
             >
-              <Repeat className="w-4 h-4" />
+              <AnimatedRepeat active={isRepeat} className="w-4 h-4" />
             </button>
           </div>
 
