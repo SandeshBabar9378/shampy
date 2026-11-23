@@ -20,6 +20,7 @@ import {
   AnimatedRepeat,
   AnimatedShuffle,
 } from "@/components/animations/MotionIcons";
+import "@/components/ui/MotionIcons.css";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { MobilePlayer } from "@/components/MobilePlayer";
 import { NowPlayingFullscreen } from "@/components/NowPlayingFullscreen";
@@ -36,9 +37,11 @@ function formatTime(seconds: number): string {
 interface PlayerProps {
   /** Home renders the bar inside the center region with equal side gutters. */
   embedded?: boolean;
+  /** /settings keeps only the phone mini-player; desktop chrome stays untouched. */
+  hideDesktop?: boolean;
 }
 
-export function Player({ embedded = false }: PlayerProps) {
+export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
   const {
     currentTrack, isPlaying, currentTime, duration,
     volume, isMuted, isShuffle, isRepeat, isResolving,
@@ -108,7 +111,7 @@ export function Player({ embedded = false }: PlayerProps) {
           )`,
           backdropFilter: "blur(24px)",
         }}
-        className={`hidden sm:flex ${positionClasses} shubhu-ui-controls h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
+        className={`${hideDesktop ? "hidden" : "hidden sm:flex"} ${positionClasses} shubhu-ui-controls h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
       >
 
         {/* LEFT — track info */}
@@ -130,7 +133,7 @@ export function Player({ embedded = false }: PlayerProps) {
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
               {isResolving && (
-                <div className="theme-dark-surface absolute inset-0 bg-black/60 flex items-center justify-center">
+                <div className="theme-dark-surface absolute inset-0 bg-[rgba(var(--mp-shadow-rgb),0.6)] flex items-center justify-center">
                   <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
                 </div>
               )}
@@ -158,7 +161,7 @@ export function Player({ embedded = false }: PlayerProps) {
             <AnimatedHeart
               filled={isLiked}
               className="w-5 h-5"
-              burstColor={isLiked ? "#10b981" : undefined}
+              burstColor={isLiked ? "var(--theme-accent)" : undefined}
             />
           </button>
         </div>
@@ -193,7 +196,7 @@ export function Player({ embedded = false }: PlayerProps) {
               aria-label={isPlaying ? "Pause" : "Play"}
               className="w-9 h-9 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md cursor-pointer disabled:opacity-60"
             >
-              <AnimatedPlayPause playing={isPlaying} className="w-4 h-4 text-black" />
+              <AnimatedPlayPause playing={isPlaying} className="w-4 h-4 text-[var(--theme-accent-contrast)]" />
             </button>
 
             <button onClick={nextTrack} title="Next"
@@ -391,22 +394,12 @@ export function Player({ embedded = false }: PlayerProps) {
           desktop footer and NowPlayingFullscreen remain untouched.
       ══════════════════════════════════════════════════════════════════════ */}
       <div
-        className={`sm:hidden fixed bottom-14 left-0 right-0 z-40 px-3 pb-1 shubhu-ui-controls ${
+        className={`sm:hidden fixed bottom-[72px] left-0 right-0 z-40 px-3 pb-1 shubhu-ui-controls ${
           mobileExpanded ? "pointer-events-none" : ""
         }`}
       >
         {!mobileExpanded && (
-          <div
-            style={{
-              background: `linear-gradient(
-                to right,
-                rgba(${dominantColor}, 0.35) 0%,
-                rgba(var(--player-surface-rgb), 0.96) 60%
-              )`,
-              backdropFilter: "blur(20px)",
-            }}
-            className="flex items-center gap-3 border border-white/10 rounded-2xl px-3.5 py-2.5 shadow-2xl"
-          >
+          <div className="shubhu-mini-player flex items-center gap-3 rounded-2xl border px-3 py-2.5 shadow-2xl backdrop-blur-xl">
             <img
               src={mobileCover}
               alt={currentTrack.title}
@@ -417,17 +410,20 @@ export function Player({ embedded = false }: PlayerProps) {
               className="w-10 h-10 rounded-lg object-cover shrink-0 cursor-pointer"
             />
             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setMobileExpanded(true)}>
-              <p className="text-sm font-semibold text-white truncate">{currentTrack.title}</p>
-              <p className="text-xs text-neutral-400 truncate">{currentTrack.artist}</p>
+              {isPlaying ? (
+                <p className="text-sm font-semibold text-white truncate">{currentTrack.title}</p>
+              ) : (
+                <p className="shubhu-text-muted text-sm font-medium truncate">Currently Playing...</p>
+              )}
             </div>
             <button
               onClick={togglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
-              className="w-8 h-8 rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-transform"
+              className="w-8 h-8 flex items-center justify-center text-white shrink-0 cursor-pointer shubhu-press"
             >
-              <AnimatedPlayPause playing={isPlaying} className="w-4 h-4 text-black" />
+              <AnimatedPlayPause playing={isPlaying} className="w-5 h-5 text-[var(--color-white)]" />
             </button>
-            <button onClick={nextTrack} className="text-neutral-400 cursor-pointer p-1">
+            <button onClick={nextTrack} aria-label="Next" className="text-[var(--color-white)] cursor-pointer p-1 shubhu-press">
               <SkipForward className="w-5 h-5 fill-current" />
             </button>
           </div>

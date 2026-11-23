@@ -23,7 +23,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { usePlayer, type ThemeId } from "@/context/PlayerContext";
+import { usePlayer } from "@/context/PlayerContext";
+import { useTheme, type ThemeId } from "@/context/ThemeContext";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
 import { AccountSection } from "@/components/AccountSection";
 import { InstallAppCard } from "@/components/InstallAppCard";
@@ -34,22 +35,19 @@ const THEMES: { id: ThemeId; name: string; description: string; swatch: string }
     id: "ocean",
     name: "Ocean Glow",
     description: "Oceanic Teal · Luminous",
-    swatch:
-      "radial-gradient(circle at 28% 24%, rgba(103, 232, 249, 0.9) 0%, transparent 30%), radial-gradient(circle at 74% 72%, rgba(45, 212, 191, 0.7) 0%, transparent 34%), linear-gradient(135deg, #041414 0%, #0b3a38 55%, #0a5a55 100%)",
+    swatch: "var(--swatch-ocean)",
   },
   {
     id: "aurora",
     name: "Aurora Glow",
     description: "Midnight Violet · Atmospheric",
-    swatch:
-      "radial-gradient(circle at 30% 25%, rgba(216, 180, 254, 0.82) 0%, transparent 30%), radial-gradient(circle at 72% 70%, rgba(139, 92, 246, 0.72) 0%, transparent 34%), linear-gradient(135deg, #0b0812 0%, #2b1b45 55%, #5b3b8c 100%)",
+    swatch: "var(--swatch-aurora)",
   },
   {
     id: "graphite",
     name: "Graphite Ivory",
     description: "Muted Greige · Restrained Sage",
-    swatch:
-      "linear-gradient(100deg, #2a2622 0%, #2a2622 40%, #d8d4cb 40%, #d8d4cb 72%, #7c8f82 72%, #7c8f82 100%)",
+    swatch: "var(--swatch-graphite)",
   },
 ];
 
@@ -71,8 +69,8 @@ interface SectionCardProps {
 function SectionCard({ id, icon, title, description, action, children }: SectionCardProps) {
   return (
     <section id={id} className="scroll-mt-6">
-      <div className="overflow-hidden rounded-3xl border border-neutral-800/80 bg-neutral-950/60 shadow-[0_24px_60px_-32px_rgba(0,0,0,0.85)] backdrop-blur-sm">
-        <div className="flex items-start gap-3.5 border-b border-neutral-800/60 p-5 sm:gap-4 sm:p-6">
+      <div className="shubhu-card-surface overflow-hidden rounded-3xl border shadow-[0_24px_60px_-32px_rgba(var(--mp-shadow-rgb),0.85)] backdrop-blur-sm">
+        <div className="flex items-start gap-3.5 border-b border-[var(--theme-border)] p-5 sm:gap-4 sm:p-6">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
             {icon}
           </span>
@@ -101,10 +99,10 @@ interface MobileCardProps {
 /** Glassmorphism card used only by the mobile Settings layout. */
 function MobileCard({ icon, title, subtitle, action, children }: MobileCardProps) {
   return (
-    <section className="relative overflow-hidden rounded-[24px] border border-neutral-800/70 bg-neutral-950/60 p-4 shadow-[0_16px_40px_-24px_rgba(0,0,0,0.9)] ring-1 ring-inset ring-white/5 backdrop-blur-xl">
+    <section className="shubhu-card-surface relative overflow-hidden rounded-[24px] border p-4 shadow-[0_16px_40px_-24px_rgba(var(--mp-shadow-rgb),0.9)] ring-1 ring-inset ring-[var(--theme-border)] backdrop-blur-xl">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.055),transparent_55%)]"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(var(--mp-ink-rgb),0.055),transparent_55%)]"
       />
       <div
         aria-hidden="true"
@@ -127,7 +125,8 @@ function MobileCard({ icon, title, subtitle, action, children }: MobileCardProps
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, updateUser, theme, setTheme } = usePlayer();
+  const { user, updateUser } = usePlayer();
+  const { theme, setTheme } = useTheme();
   const { installed, canPrompt, ios } = useInstallState();
   const [username, setUsername] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
@@ -184,14 +183,14 @@ export default function SettingsPage() {
       {/* ─── Mobile (below lg) ───────────────────────────────────────────── */}
       <div
         data-theme-region="app"
-        className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg lg:hidden"
+        className="relative flex min-h-dvh w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg lg:hidden"
       >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl"
         />
 
-        <header className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+        <header className="shubhu-app-header relative z-10 flex shrink-0 items-center gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
           <button
             onClick={() => router.back()}
             aria-label="Back"
@@ -212,7 +211,7 @@ export default function SettingsPage() {
         </header>
 
         <div className="relative z-10 min-h-0 flex-1 overflow-y-auto scroll-smooth">
-          <div className="space-y-3.5 px-4 pb-[calc(2rem_+_env(safe-area-inset-bottom))] pt-3">
+          <div className="space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_var(--mobile-bottom-nav-height)_+_var(--mobile-mini-player-height))] pt-3">
             {/* Get the App */}
             <MobileCard
               icon={<Smartphone className="h-5 w-5" />}
@@ -294,7 +293,7 @@ export default function SettingsPage() {
                       >
                         <span aria-hidden="true" className="absolute inset-0" style={{ background: option.swatch }} />
                         {selected ? (
-                          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-black shadow">
+                          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[var(--theme-accent-contrast)] shadow">
                             <Check className="h-3 w-3" />
                           </span>
                         ) : null}
@@ -374,7 +373,7 @@ export default function SettingsPage() {
                             className="h-full w-full rounded-[10px] bg-neutral-800 object-cover"
                           />
                           {active ? (
-                            <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-black ring-2 ring-[var(--background)]">
+                            <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[var(--theme-accent-contrast)] ring-2 ring-[var(--background)]">
                               <Check className="h-3 w-3" />
                             </span>
                           ) : null}
@@ -477,10 +476,10 @@ export default function SettingsPage() {
       <div className="hidden lg:block">
         <div
           data-theme-region="app"
-          className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
+          className="flex min-h-dvh w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
         >
       {/* Top Bar */}
-      <header className="relative z-20 shrink-0 border-b border-neutral-800/70 bg-neutral-950/70 backdrop-blur-xl">
+      <header className="shubhu-app-header relative z-20 shrink-0 border-b backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:h-[72px] sm:gap-4 sm:px-6">
           <button
             onClick={() => router.back()}
@@ -696,7 +695,7 @@ export default function SettingsPage() {
                               className="h-full w-full rounded-[10px] bg-neutral-800 object-cover"
                             />
                             {active && (
-                              <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-black ring-2 ring-[var(--background)]">
+                              <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[var(--theme-accent-contrast)] ring-2 ring-[var(--background)]">
                                 <Check className="h-3 w-3" />
                               </span>
                             )}
@@ -758,7 +757,7 @@ export default function SettingsPage() {
                     </button>
                     <button
                       type="submit"
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-black shadow-lg shadow-emerald-500/20 transition-all hover:bg-[var(--theme-accent-strong)] cursor-pointer sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-[var(--theme-accent-contrast)] shadow-lg shadow-emerald-500/20 transition-all hover:bg-[var(--theme-accent-strong)] cursor-pointer sm:w-auto"
                     >
                       {saved ? (
                         <>

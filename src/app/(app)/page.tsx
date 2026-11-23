@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Download,
   DownloadCloud,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -38,6 +39,7 @@ import { FEATURED_PLAYLISTS, CURATED_TRACKS } from "@/lib/musicProvider";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { PlaylistCollage } from "@/components/PlaylistCollage";
 import { MobileDownloads } from "@/components/MobileDownloads";
+import { MobileHome } from "@/components/home/MobileHome";
 import { DOWNLOAD_TEST_NOTE } from "@/lib/testDownloadProvider";
 import { getDefaultArtworkFallbackUrl, getTrackArtworkFallbackUrl, getTrackArtworkUrl, getYouTubeArtworkUrl } from "@/lib/artwork";
 
@@ -891,7 +893,12 @@ export default function Home() {
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
           {/* ===================== HOME VIEW ===================== */}
           {currentView === "home" && (
-            <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+            <>
+              {/* Phone-only Home rebuild; desktop keeps the existing layout. */}
+              <div className="sm:hidden">
+                <MobileHome />
+              </div>
+              <div className="hidden sm:block space-y-6 sm:space-y-8 animate-in fade-in duration-200">
               {/* Header Greeting */}
               <div>
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -1084,8 +1091,8 @@ export default function Home() {
                                   <div
                                     className={`relative w-full h-full overflow-hidden border ${
                                       isCenter
-                                        ? "border-emerald-500/40 shadow-[0_32px_64px_rgba(0,0,0,0.6)]"
-                                        : "border-white/10 shadow-[0_24px_48px_rgba(0,0,0,0.45)]"
+                                        ? "border-emerald-500/40 shadow-[0_32px_64px_rgba(var(--mp-shadow-rgb),0.6)]"
+                                        : "border-white/10 shadow-[0_24px_48px_rgba(var(--mp-shadow-rgb),0.45)]"
                                     }`}
                                     style={{ borderRadius: cardRadius }}
                                   >
@@ -1135,7 +1142,7 @@ export default function Home() {
                                             restartCarouselTimer();
                                             playTrack(track, carouselTracks);
                                           }}
-                                          className="absolute z-20 flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-105 active:scale-95 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white/20 border border-white/70 text-white backdrop-blur-sm sm:left-auto sm:top-auto sm:bottom-[18px] sm:right-[18px] sm:translate-x-0 sm:translate-y-0 sm:w-[52px] sm:h-[52px] sm:bg-emerald-500 sm:border-0 sm:text-black sm:shadow-[0_0_24px_rgba(16,185,129,0.45)] hover:bg-[var(--theme-accent-strong)]"
+                                          className="absolute z-20 flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-105 active:scale-95 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white/20 border border-white/70 text-white backdrop-blur-sm sm:left-auto sm:top-auto sm:bottom-[18px] sm:right-[18px] sm:translate-x-0 sm:translate-y-0 sm:w-[52px] sm:h-[52px] sm:bg-emerald-500 sm:border-0 sm:text-black sm:shadow-[0_0_24px_rgba(var(--theme-accent-rgb),0.45)] hover:bg-[var(--theme-accent-strong)]"
                                           title="Play"
                                         >
                                           <Play className="w-6 h-6 sm:w-5 sm:h-5 fill-white sm:fill-black ml-0.5" />
@@ -1152,7 +1159,7 @@ export default function Home() {
                                           className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full shubhu-like-btn flex items-center justify-center text-white bg-black/20 backdrop-blur-sm cursor-pointer sm:hidden"
                                           title="Save to Liked Songs"
                                         >
-                                          <Heart className={`w-6 h-6 ${likedSongIds.has(track.id) ? "fill-white" : ""}`} />
+                                          <Heart className={`w-6 h-6 ${mounted && likedSongIds.has(track.id) ? "fill-white" : ""}`} />
                                         </button>
                                       </>
                                     )}
@@ -1534,7 +1541,8 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            </>
           )}
 
           {/* ===================== SEARCH VIEW ===================== */}
@@ -1822,19 +1830,20 @@ export default function Home() {
                     </h2>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                       {[
-                        { name: "Chill", query: "chill lofi hits", color: "from-blue-700 to-indigo-900" },
-                        { name: "Romantic", query: "romantic hindi songs", color: "from-rose-700 to-pink-900" },
-                        { name: "Party", query: "party dance club hits", color: "from-amber-600 to-red-900" },
-                        { name: "Workout", query: "high energy workout motivation", color: "from-emerald-700 to-teal-950" },
-                        { name: "Focus", query: "deep focus instrumental study", color: "from-purple-700 to-slate-900" },
-                        { name: "Heartbreak", query: "sad hindi heartbreak songs", color: "from-sky-800 to-blue-950" },
-                        { name: "Retro", query: "90s 2000s retro classic bollywood", color: "from-yellow-700 to-orange-900" },
-                        { name: "English Hits", query: "top english pop hits 2026", color: "from-violet-700 to-purple-950" },
+                        { name: "Chill", query: "chill lofi hits", color: "var(--home-mood-1)" },
+                        { name: "Romantic", query: "romantic hindi songs", color: "var(--home-mood-2)" },
+                        { name: "Party", query: "party dance club hits", color: "var(--home-mood-3)" },
+                        { name: "Workout", query: "high energy workout motivation", color: "var(--home-mood-4)" },
+                        { name: "Focus", query: "deep focus instrumental study", color: "var(--home-mood-5)" },
+                        { name: "Heartbreak", query: "sad hindi heartbreak songs", color: "var(--home-mood-6)" },
+                        { name: "Retro", query: "90s 2000s retro classic bollywood", color: "var(--home-mood-7)" },
+                        { name: "English Hits", query: "top english pop hits 2026", color: "var(--home-mood-8)" },
                       ].map((mood) => (
                         <button
                           key={mood.name}
                           onClick={() => submitSearch(mood.query)}
-                          className={`theme-dark-surface p-4 sm:p-6 rounded-2xl bg-gradient-to-br ${mood.color} text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group`}
+                          style={{ backgroundImage: mood.color }}
+                          className="theme-dark-surface p-4 sm:p-6 rounded-2xl text-left cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xl border border-white/10 group"
                         >
                           <span className="font-display font-bold text-base sm:text-lg text-white block">
                             {mood.name}
@@ -1850,18 +1859,19 @@ export default function Home() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                       {FEATURED_PLAYLISTS.map((pl, i) => {
                         const colors = [
-                          "from-purple-600 to-indigo-900",
-                          "from-rose-600 to-pink-900",
-                          "from-amber-600 to-yellow-900",
-                          "from-emerald-600 to-teal-900",
-                          "from-blue-600 to-cyan-900",
-                          "from-orange-600 to-red-900",
+                          "var(--home-category-1)",
+                          "var(--home-category-2)",
+                          "var(--home-category-3)",
+                          "var(--home-category-4)",
+                          "var(--home-category-5)",
+                          "var(--home-category-6)",
                         ];
                         return (
                           <div
                             key={pl.id}
                             onClick={() => router.push(`/playlist/${pl.playlistId}`)}
-                            className={`theme-dark-surface aspect-square p-3 sm:p-4 rounded-xl bg-gradient-to-br ${colors[i % colors.length]} flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group`}
+                            style={{ backgroundImage: colors[i % colors.length] }}
+                            className="theme-dark-surface aspect-square p-3 sm:p-4 rounded-xl flex flex-col justify-between cursor-pointer hover:scale-102 transition-all shadow-lg overflow-hidden relative group"
                           >
                             <span className="font-bold text-[13px] sm:text-lg text-white leading-snug break-words">
                               {pl.name}
@@ -1953,6 +1963,29 @@ export default function Home() {
             </div>
           )}
 
+          {/* ===================== RECENT PLAYED VIEW ===================== */}
+          {currentView === "recent" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-[var(--theme-icon)]" />
+                <h1 className="text-2xl font-extrabold text-white tracking-tight">Recent Played</h1>
+              </div>
+              {recentlyPlayed.length === 0 ? (
+                <div className="py-16 text-center text-neutral-500">
+                  <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-base font-semibold text-neutral-300">Nothing here yet</p>
+                  <p className="text-xs text-neutral-500 mt-1">Play something to see it here.</p>
+                </div>
+              ) : (
+                <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
+                  {recentlyPlayed.map((track, i) => (
+                    <TrackRow key={track.id} track={track} index={i} queue={recentlyPlayed} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ===================== YOUR LIBRARY VIEW ===================== */}
           {currentView === "library" && (
             <div className="space-y-6 animate-in fade-in duration-200">
@@ -1973,7 +2006,7 @@ export default function Home() {
                   onClick={() => setCurrentView("liked")}
                   className="group relative bg-neutral-900/60 hover:bg-neutral-800/80 p-4 rounded-xl transition-all duration-200 cursor-pointer flex flex-col border border-neutral-800/40 hover:border-neutral-700/60 shadow-sm hover:shadow-xl hover:scale-105"
                 >
-                  <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 bg-gradient-to-br from-[#450af5] to-[#8e8ee5] flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
+                  <div className="relative aspect-square w-full rounded-lg overflow-hidden mb-4 shubhu-home-gradient flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300" style={{ "--home-gradient": "var(--home-category-1)" } as React.CSSProperties}>
                     <Heart className="w-16 h-16 text-white fill-white shadow-xl" />
                   </div>
                   <h3 className="font-semibold text-white text-base truncate mb-1">

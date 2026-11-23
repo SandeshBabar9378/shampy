@@ -11,9 +11,11 @@ interface NavbarProps {
   showSearch: boolean;
   onOpenProfile: () => void;
   onOpenSearch: () => void;
+  /** Phone Home renders its own header over the night-sky backdrop. */
+  hideMobile?: boolean;
 }
 
-export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch, onOpenProfile, onOpenSearch }: NavbarProps) {
+export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch, onOpenProfile, onOpenSearch, hideMobile = false }: NavbarProps) {
   const { user } = usePlayer();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
@@ -22,7 +24,7 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
   };
 
   return (
-    <header className="h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+    <header className={`shubhu-app-header ${hideMobile ? "hidden sm:flex" : "flex"} h-16 px-4 sm:px-6 items-center justify-between sticky top-0 z-20 backdrop-blur-xl border-b`}>
       {/* Mobile: Top left Shubhu logo icon */}
       <div className="sm:hidden flex items-center gap-2 shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -9,21 +9,23 @@
  *
  * How the one-shot animations are triggered
  * ─────────────────────────────────────────
- * Each glyph owns a tiny `data-*` attribute on its wrapper. A layout effect
- * toggles that attribute only when the boolean actually changes, and the CSS
- * keyframes hang off `[data-pulse]` / `[data-burst]`. Two payoffs:
+ * Toggle glyphs (shuffle / repeat) own a tiny `data-pulse` attribute on their
+ * wrapper. An effect toggles it only when the boolean actually changes, and
+ * the CSS keyframes hang off `[data-pulse]`. The heart drives its own
+ * `data-burst` from click state instead, so its markup stays hydration-stable.
+ * Two payoffs:
  *
  *  1. Navigating to a page where Shuffle is *already* on does not replay the
  *     animation — nothing "changes", so nothing fires.
- *  2. No `setState` inside an effect, so no cascading re-render and no React
- *     `set-state-in-effect` violation.
+ *  2. The heart never derives its burst or fill from a value that can differ
+ *     between the server render and the first client render.
  *
  * The reflow read (`getBoundingClientRect`) between removing and re-adding the
  * attribute is what makes the browser treat it as a fresh animation even when
  * the toggle flips back within the same frame.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -92,14 +94,55 @@ export function AnimatedHeart({
   strokeWidth = 2,
 }: AnimatedHeartProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
-  useAnimationTrigger(filled, wrapperRef, "data-burst");
+
+  // `filled` is derived from localStorage-backed player state in some parents:
+  // an empty Set on the server, a populated one on the client's first render.
+  // Never trust that prop for the hydration render — adopt it after mount.
+  const [resolvedFilled, setResolvedFilled] = useState(false);
+  useEffect(() => {
+    // Defer to an effect callback so the hydration render keeps the safe value.
+    const id = window.setTimeout(() => setResolvedFilled(filled), 0);
+    return () => window.clearTimeout(id);
+  }, [filled]);
+
+  // Burst is click-driven only. It is never derived from `filled`, so the
+  // burst <span> cannot appear on one side of hydration and not the other.
+  const [burstId, setBurstId] = useState(0);
+  const burstCounter = useRef(0);
+
+  useEffect(() => {
+    const button = wrapperRef.current?.closest("button");
+    if (!button) return;
+
+    const handleClick = () => {
+      if (resolvedFilled) return; // burst on like, not on unlike
+      burstCounter.current += 1;
+      setBurstId(burstCounter.current);
+    };
+
+    button.addEventListener("click", handleClick);
+    return () => button.removeEventListener("click", handleClick);
+  }, [resolvedFilled]);
+
+  useEffect(() => {
+    if (burstId === 0) return;
+    const timer = window.setTimeout(() => setBurstId(0), 760);
+    return () => window.clearTimeout(timer);
+  }, [burstId]);
+
+  const burstActive = burstId > 0;
 
   return (
-    <span className="shubhu-heart" ref={wrapperRef} aria-hidden="true">
+    <span
+      className="shubhu-heart"
+      ref={wrapperRef}
+      data-burst={burstActive ? "" : undefined}
+      aria-hidden="true"
+    >
       <svg
         viewBox="0 0 24 24"
         className={className}
-        fill={filled ? "currentColor" : "none"}
+        fill={resolvedFilled ? "currentColor" : "none"}
         stroke="currentColor"
         strokeWidth={strokeWidth}
         strokeLinecap="round"
@@ -108,8 +151,9 @@ export function AnimatedHeart({
         <path d={HEART_PATH} />
       </svg>
 
-      {filled && (
+      {burstActive && (
         <span
+          key={burstId}
           className="shubhu-heart-burst"
           style={burstColor ? { color: burstColor } : undefined}
         >

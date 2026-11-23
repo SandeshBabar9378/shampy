@@ -480,7 +480,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               }`}
               title={isLiked ? "Liked" : "Like"}
             >
-              <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="#34d399" />
+              <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="var(--color-emerald-400)" />
             </button>
           )}
         </div>
@@ -544,7 +544,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               value={currentTime}
               onChange={(e) => seek(Number(e.target.value))}
               style={{
-                background: `linear-gradient(to right, #10b981 ${seekPercent}%, #374151 ${seekPercent}%)`,
+                background: `linear-gradient(to right, var(--theme-accent) ${seekPercent}%, var(--color-neutral-700) ${seekPercent}%)`,
               }}
               className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
             />
@@ -616,7 +616,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
               value={isMuted ? 0 : volume}
               onChange={(e) => setVolume(Number(e.target.value))}
               style={{
-                background: `linear-gradient(to right, #10b981 ${volumePercent}%, #374151 ${volumePercent}%)`,
+                background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--color-neutral-700) ${volumePercent}%)`,
               }}
               className="w-20 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
             />

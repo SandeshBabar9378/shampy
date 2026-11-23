@@ -523,7 +523,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   return (
     <div
       data-theme-region="legacy-dark"
-      className={`shubhu-ui-controls fixed inset-0 z-[70] h-[100dvh] bg-[#08090a] text-white select-none overflow-hidden overflow-x-hidden ${
+      className={`shubhu-ui-controls fixed inset-0 z-[70] h-[100dvh] bg-[var(--background)] text-white select-none overflow-hidden overflow-x-hidden ${
         closing ? "shubhu-np-exit" : "shubhu-np-enter"
       }`}
     >
@@ -536,7 +536,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
         <div
           className="absolute inset-0"
           style={{
-            background: `linear-gradient(180deg, rgba(${dominantColor}, 0.42) 0%, rgba(8, 9, 10, 0.82) 55%, rgba(8, 9, 10, 0.97) 100%)`,
+            background: `linear-gradient(180deg, rgba(${dominantColor}, 0.42) 0%, rgba(var(--background-rgb), 0.82) 55%, rgba(var(--background-rgb), 0.97) 100%)`,
           }}
         />
       </div>
@@ -574,7 +574,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   style={{
                     animationPlayState: isPlaying ? "running" : "paused",
                     background:
-                      "radial-gradient(circle at center, #0b0b0b 0%, #0b0b0b 62%, #161616 100%)",
+                      "radial-gradient(circle at center, var(--color-neutral-950) 0%, var(--color-neutral-950) 62%, var(--color-neutral-900) 100%)",
                   }}
                 >
                   {/* Fine concentric grooves: thin alternating dark / light rings */}
@@ -582,7 +582,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                     className="absolute inset-0 rounded-full"
                     style={{
                       background:
-                        "repeating-radial-gradient(circle at center, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 0.5px, rgba(0,0,0,0.55) 0.5px, rgba(0,0,0,0.55) 2px)",
+                        "repeating-radial-gradient(circle at center, rgba(var(--color-white-rgb),0.05) 0px, rgba(var(--color-white-rgb),0.05) 0.5px, rgba(var(--color-black-rgb),0.55) 0.5px, rgba(var(--color-black-rgb),0.55) 2px)",
                     }}
                   />
                   {/* Soft diagonal gloss across the upper-right */}
@@ -590,23 +590,23 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                     className="absolute inset-0 rounded-full pointer-events-none"
                     style={{
                       background:
-                        "linear-gradient(225deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 18%, rgba(255,255,255,0) 42%, rgba(255,255,255,0) 100%)",
+                        "linear-gradient(225deg, rgba(var(--color-white-rgb),0.09) 0%, rgba(var(--color-white-rgb),0.04) 18%, rgba(var(--color-white-rgb),0) 42%, rgba(var(--color-white-rgb),0) 100%)",
                     }}
                   />
                   {/* Plain white label (38% of disc diameter) */}
                   <div
                     className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[38%] aspect-square rounded-full flex items-center justify-center"
                     style={{
-                      background: "#f3f3f3",
-                      boxShadow: "inset 0 0 10px rgba(0,0,0,0.10), inset 0 1px 2px rgba(0,0,0,0.12)",
+                      background: "var(--color-neutral-100)",
+                      boxShadow: "inset 0 0 10px rgba(var(--color-black-rgb),0.10), inset 0 1px 2px rgba(var(--color-black-rgb),0.12)",
                     }}
                   >
                     {/* Spindle hole (~4% of disc diameter) */}
                     <div
                       className="w-[10.5%] aspect-square rounded-full"
                       style={{
-                        background: "#050505",
-                        boxShadow: "inset 0 0 2px rgba(0,0,0,0.9)",
+                        background: "var(--color-black)",
+                        boxShadow: "inset 0 0 2px rgba(var(--color-black-rgb),0.9)",
                       }}
                     />
                   </div>
@@ -646,7 +646,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                       }`}
                       title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
                     >
-                      <AnimatedHeart filled={isLiked} className="w-5 h-5" burstColor="#34d399" />
+                      <AnimatedHeart filled={isLiked} className="w-5 h-5" burstColor="var(--color-emerald-400)" />
                     </button>
                     <button
                       onClick={() => {
@@ -740,7 +740,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                         className="w-full text-left px-2.5 py-2 rounded hover:bg-neutral-800 flex items-center gap-2 cursor-pointer border-t border-neutral-800 mt-1"
                       >
                         <span className={isLiked ? "text-emerald-400" : ""}>
-                          <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="#34d399" />
+                          <AnimatedHeart filled={isLiked} className="w-4 h-4" burstColor="var(--color-emerald-400)" />
                         </span>
                         {isLiked ? "Unlike" : "Like"}
                       </button>
@@ -776,7 +776,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   onMouseUp={handleSeekCommit}
                   onTouchEnd={handleSeekCommit}
                   style={{
-                    background: `linear-gradient(to right, #10b981 ${seekPercent}%, rgba(255,255,255,0.22) ${seekPercent}%)`,
+                    background: `linear-gradient(to right, var(--theme-accent) ${seekPercent}%, rgba(var(--color-white-rgb),0.22) ${seekPercent}%)`,
                   }}
                   className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
                 />
@@ -790,14 +790,14 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   aria-pressed={isShuffle}
                   className={`relative p-2 cursor-pointer rounded-full transition-all duration-200 ${
                     isShuffle
-                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(var(--color-emerald-400-rgb),0.5)]"
                       : "text-neutral-400 hover:text-white"
                   }`}
                   title={isShuffle ? "Shuffle on" : "Shuffle off"}
                 >
                   <AnimatedShuffle active={isShuffle} className="w-5 h-5" />
                   {isShuffle && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(var(--color-emerald-400-rgb),0.8)]" />
                   )}
                 </button>
                 <button
@@ -831,14 +831,14 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   aria-pressed={isRepeat}
                   className={`relative p-2 cursor-pointer rounded-full transition-all duration-200 ${
                     isRepeat
-                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                      ? "text-emerald-400 bg-emerald-400/10 ring-1 ring-emerald-400/40 drop-shadow-[0_0_10px_rgba(var(--color-emerald-400-rgb),0.5)]"
                       : "text-neutral-400 hover:text-white"
                   }`}
                   title={isRepeat ? "Repeat on" : "Repeat off"}
                 >
                   <AnimatedRepeat active={isRepeat} className="w-5 h-5" />
                   {isRepeat && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(52,211,153,0.8)]" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_8px_2px_rgba(var(--color-emerald-400-rgb),0.8)]" />
                   )}
                 </button>
               </div>
@@ -861,7 +861,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                   onChange={(e) => setVolume(Number(e.target.value))}
                   aria-label="Volume"
                   style={{
-                    background: `linear-gradient(to right, #10b981 ${volumePercent}%, #4d4d4d ${volumePercent}%)`,
+                    background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--color-neutral-600) ${volumePercent}%)`,
                   }}
                   className="flex-1 min-w-0 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
                 />

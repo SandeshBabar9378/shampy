@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Play, Pause, MoreVertical, X, ListPlus, ListEnd, ListStart, Trash2, Download, DownloadCloud } from "lucide-react";
 import { AnimatedHeart, AnimatedListPlus } from "@/components/animations/MotionIcons";
 import { useRouter } from "next/navigation";
@@ -38,9 +38,18 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
   const [showMenuPlaylists, setShowMenuPlaylists] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const isCurrent = currentTrack?.id === track.id;
-  const isLiked = likedSongIds.has(track.id);
+  // likedSongIds is hydrated from localStorage in PlayerContext, so it is
+  // empty during SSR and may be populated on the client's first render.
+  // Keep the like button identical until after mount, then adopt the real value.
+  const isLiked = mounted && likedSongIds.has(track.id);
 
   const closeMenus = () => {
     setBottomSheetOpen(false);

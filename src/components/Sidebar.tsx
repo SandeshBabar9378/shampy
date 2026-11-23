@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, Search, Library, Plus, Heart, ChevronLeft, ChevronRight, Settings, Download } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { PlaylistCollage } from "./PlaylistCollage";
@@ -15,11 +15,14 @@ interface SidebarProps {
   onOpenSettings?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  /** /settings only needs the phone bar; the desktop rail is supplied by the page. */
+  hideDesktop?: boolean;
 }
 
-export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreatePlaylist, onOpenSettings, collapsed, onToggleCollapsed }: SidebarProps) {
+export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreatePlaylist, onOpenSettings, collapsed, onToggleCollapsed, hideDesktop = false }: SidebarProps) {
   const { user, likedSongIds, playlists, savedPlaylists, setMobileExpanded, currentTrack } = usePlayer();
   const router = useRouter();
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   React.useEffect(() => {
@@ -65,7 +68,7 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
   return (
     <>
       {/* ── Desktop sidebar ──────────────────────────────────────────────── */}
-      <aside
+      {!hideDesktop && <aside
         data-theme-region="sidebar"
         className={`hidden sm:flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-3 shrink-0 rounded-2xl bg-neutral-950/80 backdrop-blur-xl border border-white/5 shadow-2xl transition-all duration-300 select-none z-20 ${
           collapsed ? "w-16" : "w-64"
@@ -287,42 +290,53 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
             </button>
           )}
         </div>
-      </aside>
+      </aside>}
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-neutral-950/90 backdrop-blur-xl border-t border-white/10 flex justify-around py-2 pb-safe shadow-2xl">
+      <nav className="shubhu-bottom-nav sm:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t flex justify-around py-2 pb-safe shadow-2xl">
         {[
           navItems.find((n) => n.id === "home")!,
           navItems.find((n) => n.id === "search")!,
           navItems.find((n) => n.id === "library")!,
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => {
-              setMobileExpanded(false);
-              onSelectView(id);
-            }}
-            className={`flex flex-col items-center gap-1 px-4 py-1 rounded-xl cursor-pointer transition-colors ${
-              currentView === id
-                ? "text-emerald-400 font-semibold"
-                : "text-neutral-400 hover:text-neutral-200"
-            }`}
-          >
-            <Icon className="w-5 h-5" />
-            <span className="text-[10px] tracking-tight">{label}</span>
-          </button>
-        ))}
+        ].map(({ id, label, icon: Icon }) => {
+          const active = pathname === "/" && currentView === id;
+          return (
+            <button
+              key={id}
+              onClick={() => {
+                setMobileExpanded(false);
+                onSelectView(id);
+              }}
+              aria-current={active ? "page" : undefined}
+              className={`flex flex-col items-center gap-1 px-4 py-1 rounded-xl cursor-pointer ${
+                active ? "font-semibold text-[var(--theme-accent)]" : "text-[var(--color-white)]"
+              }`}
+            >
+              <Icon className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth={2} />
+              <span className={`text-[10px] tracking-tight ${active ? "text-[var(--theme-accent)]" : "text-[var(--color-white)]"}`}>
+                {id === "library" ? "Library" : label}
+              </span>
+              {active && <span className="h-0.5 w-6 rounded-full bg-[var(--theme-accent)]" />}
+            </button>
+          );
+        })}
         <button
           onClick={() => {
             setMobileExpanded(false);
             if (onOpenSettings) onOpenSettings();
             else router.push("/settings");
           }}
-          className="flex flex-col items-center gap-1 px-4 py-1 rounded-xl cursor-pointer transition-colors text-neutral-400 hover:text-neutral-200"
+          aria-current={pathname === "/settings" ? "page" : undefined}
+          className={`flex flex-col items-center gap-1 px-4 py-1 rounded-xl cursor-pointer ${
+            pathname === "/settings" ? "font-semibold text-[var(--theme-accent)]" : "text-[var(--color-white)]"
+          }`}
           title="Settings"
         >
-          <Settings className="w-5 h-5" />
-          <span className="text-[10px] tracking-tight">Settings</span>
+          <Settings className="h-5 w-5" stroke="currentColor" fill="none" strokeWidth={2} />
+          <span className={`text-[10px] tracking-tight ${pathname === "/settings" ? "text-[var(--theme-accent)]" : "text-[var(--color-white)]"}`}>
+            Settings
+          </span>
+          {pathname === "/settings" && <span className="h-0.5 w-6 rounded-full bg-[var(--theme-accent)]" />}
         </button>
       </nav>
     </>

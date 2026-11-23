@@ -1,0 +1,99 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Shubhu phone-Home motion glyphs.
+   Loops animate transform / opacity only. Glows are static pseudo-element
+   radial gradients (the moon glow pulses via opacity). Everything here is
+   disabled under prefers-reduced-motion. Colours come from the active theme.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Equalizer logo — five bars, soft themed glow behind them. */
+.shubhu-eq {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 26px;
+}
+.shubhu-eq::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 9999px;
+  background: var(--theme-eq-glow);
+  pointer-events: none;
+}
+.shubhu-eq-bar {
+  width: 3.5px;
+  border-radius: 2px;
+  background: var(--theme-eq-bar);
+  transform-origin: 50% 100%;
+}
+/* Bars dance only while music is actually playing. */
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar {
+  animation: shubhu-eq-bounce 0.9s ease-in-out infinite alternate;
+}
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar:nth-child(1) { animation-duration: 0.8s; }
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar:nth-child(2) { animation-duration: 0.62s; animation-delay: 0.12s; }
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar:nth-child(3) { animation-duration: 0.74s; animation-delay: 0.05s; }
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar:nth-child(4) { animation-duration: 0.58s; animation-delay: 0.2s; }
+.shubhu-eq[data-playing="true"] .shubhu-eq-bar:nth-child(5) { animation-duration: 0.86s; animation-delay: 0.08s; }
+@keyframes shubhu-eq-bounce {
+  from { transform: scaleY(0.3); }
+  to { transform: scaleY(1); }
+}
+
+/* Moon — solid core plus a wide radial glow that slowly pulses (opacity only). */
+.shubhu-moon {
+  position: relative;
+}
+.shubhu-moon-glow {
+  position: absolute;
+  inset: -75%;
+  border-radius: 50%;
+  background: var(--theme-moon-glow);
+  pointer-events: none;
+  animation: shubhu-moon-pulse 6s ease-in-out infinite;
+}
+.shubhu-moon-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--theme-moon-core);
+}
+@keyframes shubhu-moon-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+/* Speed Dial circle — themed fill with a soft glow ring at the edge. */
+.shubhu-speed-circle {
+  position: relative;
+  background: var(--theme-speed-fill);
+}
+.shubhu-speed-circle::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: var(--theme-speed-glow);
+  pointer-events: none;
+}
+
+/* Touch press feedback (transform only). Used by Speed Dial + section cards. */
+.shubhu-press {
+  transition: transform 160ms ease;
+}
+.shubhu-press:active {
+  transform: scale(0.93);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shubhu-eq[data-playing="true"] .shubhu-eq-bar,
+  .shubhu-moon-glow {
+    animation: none;
+  }
+  .shubhu-press,
+  .shubhu-press:active {
+    transition: none;
+    transform: none;
+  }
+}

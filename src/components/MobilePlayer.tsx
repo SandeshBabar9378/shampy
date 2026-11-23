@@ -46,7 +46,7 @@ import "./MobilePlayer.css";
 
 type MobileView = "player" | "lyrics" | "queue";
 
-const ACCENT = "#c9b0ff";
+const ACCENT = "var(--mp-accent-text)";
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return "0:00";
@@ -933,7 +933,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
           }
         }}
         style={{
-          background: `linear-gradient(to right, ${ACCENT} ${seekPercent}%, rgba(255,255,255,0.22) ${seekPercent}%)`,
+          background: `linear-gradient(to right, ${ACCENT} ${seekPercent}%, rgba(var(--mp-ink-rgb),0.22) ${seekPercent}%)`,
         }}
         aria-label="Playback progress"
       />
@@ -1049,7 +1049,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
         <div
           className="shubhu-mp-bgVeil"
           style={{
-            background: `linear-gradient(180deg, rgba(12, 6, 24, 0.58) 0%, rgba(10, 6, 20, 0.84) 46%, rgba(7, 4, 14, 0.97) 100%)`,
+            background: "var(--mp-veil-bg)",
           }}
         />
         <div className="shubhu-mp-bgLavender" />
@@ -1191,7 +1191,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
                       <AnimatedHeart
                         filled={isLiked}
                         className={isLiked ? "shubhu-mp-heartFilled" : "shubhu-mp-heart"}
-                        burstColor="#ff4d8d"
+                        burstColor="rgb(var(--mp-like-rgb))"
                       />
                     </button>
                   </div>
@@ -1397,7 +1397,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
               <AnimatedHeart
                 filled={isLiked}
                 className={`shubhu-mp-menuIcon ${isLiked ? "shubhu-mp-menuIconActive" : ""}`}
-                burstColor="#ff4d8d"
+                burstColor="rgb(var(--mp-like-rgb))"
               />
               <span>Like</span>
             </button>

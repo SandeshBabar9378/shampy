@@ -9,8 +9,8 @@
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  color: #f6efff;
-  background: #0a0614;
+  color: var(--color-white);
+  background: var(--background);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-user-select: none;
   user-select: none;
@@ -62,9 +62,9 @@
 
 .shubhu-mp-bgLavender {
   background:
-    radial-gradient(ellipse 80% 50% at 18% 8%, rgba(168, 85, 247, 0.22) 0%, transparent 68%),
-    radial-gradient(ellipse 70% 45% at 88% 78%, rgba(124, 58, 237, 0.2) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(201, 176, 255, 0.06) 0%, transparent 40%);
+    radial-gradient(ellipse 80% 50% at 18% 8%, rgba(var(--theme-glow-rgb), 0.22) 0%, transparent 68%),
+    radial-gradient(ellipse 70% 45% at 88% 78%, rgba(var(--theme-secondary-rgb), 0.2) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(var(--theme-accent-rgb), 0.06) 0%, transparent 40%);
 }
 
 /* ── Layout shell ────────────────────────────────────────────────────────── */
@@ -109,14 +109,14 @@
   width: 40px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(var(--mp-ink-rgb), 0.28);
   transform: translateX(-50%);
   transition: background 180ms ease, width 180ms ease;
 }
 
 .shubhu-mp-topBarDraggable:hover::before {
   width: 50px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(var(--mp-ink-rgb), 0.5);
 }
 
 /* Shared header drag surface for Queue and Lyrics/Transcript. The whole
@@ -139,16 +139,16 @@
   height: 38px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(var(--mp-ink-rgb), 0.07);
+  color: rgba(var(--mp-ink-rgb), 0.85);
   backdrop-filter: blur(10px);
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease;
 }
 
 .shubhu-mp-iconButton:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: rgba(var(--mp-ink-rgb), 0.14);
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-headerTitle {
@@ -156,7 +156,7 @@
   font-weight: 700;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(var(--mp-ink-rgb), 0.6);
 }
 
 /* ── Lyrics header (compact + expanded) ──────────────────────────────────── */
@@ -197,12 +197,12 @@
   width: 42px;
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(var(--mp-ink-rgb), 0.34);
   transition: background 200ms ease, width 200ms ease;
 }
 
 .shubhu-mp-lyricsHandle:hover span {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(var(--mp-ink-rgb), 0.55);
   width: 52px;
 }
 
@@ -219,9 +219,9 @@
   height: 40px;
   flex-shrink: 0;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.14);
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--mp-ink-rgb), 0.08);
 }
 
 .shubhu-mp-lyricsTrackMeta {
@@ -235,7 +235,7 @@
 .shubhu-mp-lyricsTrackMeta strong {
   font-size: 13.5px;
   font-weight: 700;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -243,7 +243,7 @@
 
 .shubhu-mp-lyricsTrackMeta small {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(var(--mp-ink-rgb), 0.52);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -256,10 +256,10 @@
   margin-left: auto;
   padding: 4px 9px;
   flex-shrink: 0;
-  border: 1px solid rgba(201, 176, 255, 0.26);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.26);
   border-radius: 999px;
-  background: rgba(201, 176, 255, 0.12);
-  color: #d9c5ff;
+  background: rgba(var(--theme-accent-rgb), 0.12);
+  color: var(--mp-accent-soft);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -280,16 +280,16 @@
   margin-top: 16px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(var(--mp-ink-rgb), 0.07);
+  color: rgba(var(--mp-ink-rgb), 0.85);
   backdrop-filter: blur(10px);
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease;
 }
 
 .shubhu-mp-lyricsMenuButton:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+  background: rgba(var(--mp-ink-rgb), 0.14);
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-body {
@@ -337,9 +337,9 @@
   inset: 0;
   overflow: hidden;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #1a1226;
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(168, 85, 247, 0.16);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.14);
+  background: var(--mp-surface);
+  box-shadow: 0 22px 60px rgba(var(--mp-shadow-rgb), 0.55), 0 0 40px rgba(var(--theme-glow-rgb), 0.16);
 }
 
 .shubhu-mp-currentArt {
@@ -409,17 +409,17 @@
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 2px 20px rgba(var(--mp-shadow-rgb), 0.4);
 }
 
 .shubhu-mp-songArtist {
   margin: 5px 0 0;
   font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.58);
+  color: rgba(var(--mp-ink-rgb), 0.58);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,7 +438,7 @@
   flex-shrink: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(var(--mp-ink-rgb), 0.6);
   text-align: center;
 }
 
@@ -459,8 +459,8 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 12px rgba(201, 176, 255, 0.7);
+  background: rgb(var(--mp-ink-rgb));
+  box-shadow: 0 0 12px rgba(var(--theme-accent-rgb), 0.7);
   cursor: pointer;
 }
 
@@ -469,8 +469,8 @@
   height: 13px;
   border: 0;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 12px rgba(201, 176, 255, 0.7);
+  background: rgb(var(--mp-ink-rgb));
+  box-shadow: 0 0 12px rgba(var(--theme-accent-rgb), 0.7);
   cursor: pointer;
 }
 
@@ -493,7 +493,7 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(var(--mp-ink-rgb), 0.65);
   cursor: pointer;
   transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
@@ -507,7 +507,7 @@
    shadow on a 50%-radius button) read as a stray circle popping in behind the
    icon, so the icon now carries the state on its own — same as desktop. */
 .shubhu-mp-controlActive {
-  color: #d9c5ff;
+  color: var(--mp-accent-soft);
   background: transparent;
   box-shadow: none;
 }
@@ -519,13 +519,13 @@
   padding: 6px;
   border: 0;
   background: transparent;
-  color: #f4ecff;
+  color: var(--mp-accent-pale);
   cursor: pointer;
   transition: transform 140ms ease, color 140ms ease;
 }
 
 .shubhu-mp-controlSkip:hover {
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-controlSkip:active {
@@ -547,9 +547,9 @@
   flex-shrink: 0;
   border: 0;
   border-radius: 50%;
-  background: linear-gradient(145deg, #ffffff, #e9dcff);
-  color: #1a0f2c;
-  box-shadow: 0 10px 30px rgba(201, 176, 255, 0.38), 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(145deg, rgb(var(--mp-ink-rgb)), var(--mp-accent-soft));
+  color: var(--theme-accent-contrast);
+  box-shadow: 0 10px 30px rgba(var(--theme-accent-rgb), 0.38), 0 2px 8px rgba(var(--mp-shadow-rgb), 0.3);
   cursor: pointer;
   transition: transform 160ms ease, opacity 160ms ease;
 }
@@ -634,7 +634,7 @@
   font-weight: 600;
   line-height: 1.42;
   text-align: left;
-  color: rgba(255, 255, 255, 0.34);
+  color: rgba(var(--mp-ink-rgb), 0.34);
   cursor: pointer;
   transform-origin: left center;
   transition:
@@ -647,20 +647,20 @@
 }
 
 .shubhu-mp-lyricUpcoming {
-  color: rgba(255, 255, 255, 0.46);
+  color: rgba(var(--mp-ink-rgb), 0.46);
 }
 
 .shubhu-mp-lyricPast {
-  color: rgba(255, 255, 255, 0.24);
+  color: rgba(var(--mp-ink-rgb), 0.24);
 }
 
 .shubhu-mp-lyricActive {
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   font-weight: 800;
   transform: scale(1.055);
-  border-left-color: rgba(201, 176, 255, 0.85);
-  background: linear-gradient(90deg, rgba(201, 176, 255, 0.1), rgba(201, 176, 255, 0) 72%);
-  text-shadow: 0 0 28px rgba(201, 176, 255, 0.35), 0 2px 12px rgba(0, 0, 0, 0.35);
+  border-left-color: rgba(var(--theme-accent-rgb), 0.85);
+  background: linear-gradient(90deg, rgba(var(--theme-accent-rgb), 0.1), rgba(var(--theme-accent-rgb), 0) 72%);
+  text-shadow: 0 0 28px rgba(var(--theme-accent-rgb), 0.35), 0 2px 12px rgba(var(--mp-shadow-rgb), 0.35);
 }
 
 .shubhu-mp-lyricMain {
@@ -673,11 +673,11 @@
   font-size: 13.5px;
   font-weight: 500;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.46);
+  color: rgba(var(--mp-ink-rgb), 0.46);
 }
 
 .shubhu-mp-lyricActive .shubhu-mp-lyricRegional {
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(var(--mp-ink-rgb), 0.62);
 }
 
 .shubhu-mp-lyricWordSung,
@@ -687,16 +687,16 @@
 }
 
 .shubhu-mp-lyricWordSung {
-  color: #ffffff;
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-lyricWordCurrent {
-  color: #c9b0ff;
-  text-shadow: 0 0 22px rgba(201, 176, 255, 0.55);
+  color: var(--mp-accent-text);
+  text-shadow: 0 0 22px rgba(var(--theme-accent-rgb), 0.55);
 }
 
 .shubhu-mp-lyricWordUpcoming {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(var(--mp-ink-rgb), 0.78);
 }
 
 .shubhu-mp-transcriptStatus {
@@ -705,7 +705,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(201, 176, 255, 0.7);
+  color: rgba(var(--theme-accent-rgb), 0.7);
   text-align: left;
 }
 
@@ -745,20 +745,20 @@
   gap: 10px;
   width: 100%;
   height: 100%;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(var(--mp-ink-rgb), 0.55);
   font-size: 13px;
   text-align: center;
 }
 
 .shubhu-mp-placeholder strong {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(var(--mp-ink-rgb), 0.8);
   font-size: 14px;
 }
 
 .shubhu-mp-placeholderIcon {
   width: 38px;
   height: 38px;
-  color: rgba(255, 255, 255, 0.24);
+  color: rgba(var(--mp-ink-rgb), 0.24);
 }
 
 /* ── Queue view ──────────────────────────────────────────────────────────── */
@@ -776,7 +776,7 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(var(--mp-ink-rgb), 0.5);
 }
 
 .shubhu-mp-queueHeadingNext {
@@ -809,17 +809,17 @@
 }
 
 .shubhu-mp-queueItem:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--mp-ink-rgb), 0.06);
 }
 
 .shubhu-mp-queueItemActive {
-  background: linear-gradient(90deg, rgba(201, 176, 255, 0.24), rgba(201, 176, 255, 0.07));
-  border-color: rgba(201, 176, 255, 0.3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(90deg, rgba(var(--theme-accent-rgb), 0.24), rgba(var(--theme-accent-rgb), 0.07));
+  border-color: rgba(var(--theme-accent-rgb), 0.3);
+  box-shadow: inset 0 1px 0 rgba(var(--mp-ink-rgb), 0.06);
 }
 
 .shubhu-mp-queueItemActive:hover {
-  background: linear-gradient(90deg, rgba(201, 176, 255, 0.28), rgba(201, 176, 255, 0.09));
+  background: linear-gradient(90deg, rgba(var(--theme-accent-rgb), 0.28), rgba(var(--theme-accent-rgb), 0.09));
 }
 
 .shubhu-mp-queueItem img {
@@ -828,8 +828,8 @@
   flex-shrink: 0;
   border-radius: 10px;
   object-fit: cover;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  background: rgba(var(--mp-ink-rgb), 0.08);
+  box-shadow: 0 4px 14px rgba(var(--mp-shadow-rgb), 0.28);
 }
 
 .shubhu-mp-queueMeta {
@@ -852,34 +852,34 @@
 .shubhu-mp-queueTitle {
   font-size: 13.5px;
   font-weight: 600;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-queueItemActive .shubhu-mp-queueTitle {
-  color: #f4ecff;
+  color: var(--mp-accent-pale);
 }
 
 .shubhu-mp-queueArtist {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(var(--mp-ink-rgb), 0.52);
 }
 
 .shubhu-mp-queueItemActive .shubhu-mp-queueArtist {
-  color: rgba(233, 220, 255, 0.65);
+  color: rgba(var(--theme-accent-rgb), 0.65);
 }
 
 .shubhu-mp-queueDuration {
   flex-shrink: 0;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(var(--mp-ink-rgb), 0.4);
 }
 
 .shubhu-mp-queueGripIcon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.32);
+  color: rgba(var(--mp-ink-rgb), 0.32);
 }
 
 .shubhu-mp-equalizer {
@@ -894,7 +894,7 @@
   width: 2px;
   height: 100%;
   border-radius: 2px;
-  background: #c9b0ff;
+  background: var(--mp-accent-text);
   animation: eq 900ms ease-in-out infinite alternate;
 }
 
@@ -920,11 +920,11 @@
   overflow: hidden;
   margin: 6px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.12);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--mp-ink-rgb), 0.07);
   backdrop-filter: blur(22px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 28px rgba(var(--mp-shadow-rgb), 0.28), inset 0 1px 0 rgba(var(--mp-ink-rgb), 0.06);
   transition:
     max-height 440ms cubic-bezier(0.22, 1, 0.36, 1),
     margin 440ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -957,7 +957,7 @@
   border: 1px solid transparent;
   border-radius: 12px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(var(--mp-ink-rgb), 0.62);
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -973,18 +973,18 @@
   bottom: 12px;
   left: -3px;
   width: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(var(--mp-ink-rgb), 0.1);
 }
 
 .shubhu-mp-bottomButton:hover {
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-bottomButtonActive {
-  color: #e7d8ff;
-  border-color: rgba(201, 176, 255, 0.3);
-  background: rgba(201, 176, 255, 0.18);
-  box-shadow: 0 0 20px rgba(201, 176, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--mp-accent-pale);
+  border-color: rgba(var(--theme-accent-rgb), 0.3);
+  background: rgba(var(--theme-accent-rgb), 0.18);
+  box-shadow: 0 0 20px rgba(var(--theme-accent-rgb), 0.14), inset 0 1px 0 rgba(var(--mp-ink-rgb), 0.08);
 }
 
 .shubhu-mp-bottomIcon {
@@ -998,7 +998,7 @@
   inset: 0;
   z-index: 15;
   border: 0;
-  background: rgba(5, 3, 12, 0.34);
+  background: rgba(var(--mp-shadow-rgb), 0.34);
   cursor: default;
 }
 
@@ -1009,11 +1009,11 @@
   z-index: 20;
   width: min(252px, calc(100vw - 28px));
   padding: 8px;
-  border: 1px solid rgba(201, 176, 255, 0.24);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.24);
   border-radius: 20px;
-  background: rgba(29, 19, 47, 0.95);
+  background: var(--mp-surface-strong);
   backdrop-filter: blur(26px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: 0 24px 60px rgba(var(--mp-shadow-rgb), 0.58), inset 0 1px 0 rgba(var(--mp-ink-rgb), 0.07);
   transform-origin: top right;
 }
 
@@ -1035,7 +1035,7 @@
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: #f1e9fd;
+  color: var(--mp-accent-pale);
   font-family: inherit;
   font-size: 14.5px;
   font-weight: 500;
@@ -1045,18 +1045,18 @@
 }
 
 .shubhu-mp-menuItem:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(var(--mp-ink-rgb), 0.07);
 }
 
 .shubhu-mp-menuItem:active {
-  background: rgba(201, 176, 255, 0.12);
+  background: rgba(var(--theme-accent-rgb), 0.12);
 }
 
 .shubhu-mp-menuIcon {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  color: #c4b2e6;
+  color: var(--mp-accent-muted);
 }
 
 .shubhu-mp-downloadMeta {
@@ -1071,20 +1071,20 @@
   height: 4px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(var(--mp-ink-rgb), 0.14);
 }
 
 .shubhu-mp-downloadFill {
   height: 100%;
   border-radius: inherit;
-  background: #14e88d;
+  background: var(--mp-positive);
   transition: width 160ms linear;
 }
 
 .shubhu-mp-downloadAction {
   border: 0;
   background: transparent;
-  color: #ff9b9b;
+  color: rgb(var(--mp-negative-rgb));
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
@@ -1097,8 +1097,8 @@
   margin: 0 10px 8px;
   padding: 9px 10px;
   border-radius: 10px;
-  background: rgba(244, 63, 94, 0.12);
-  color: #ffc9d2;
+  background: rgba(var(--mp-negative-rgb), 0.12);
+  color: rgb(var(--mp-negative-rgb));
   font-size: 12.5px;
   line-height: 1.35;
 }
@@ -1120,11 +1120,11 @@
   margin-left: auto;
   font-size: 12.5px;
   font-weight: 500;
-  color: rgba(201, 176, 255, 0.72);
+  color: rgba(var(--theme-accent-rgb), 0.72);
 }
 
 .shubhu-mp-menuTimerState {
-  color: #d9c5ff;
+  color: var(--mp-accent-soft);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1134,7 +1134,7 @@
   height: 24px;
   flex-shrink: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(var(--mp-ink-rgb), 0.2);
   transition: background 200ms ease;
 }
 
@@ -1145,13 +1145,13 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  background: rgb(var(--mp-ink-rgb));
+  box-shadow: 0 1px 4px rgba(var(--mp-shadow-rgb), 0.35);
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .shubhu-mp-switchOn {
-  background: #b79aff;
+  background: var(--mp-accent-deep);
 }
 
 .shubhu-mp-switchOn i {
@@ -1159,15 +1159,15 @@
 }
 
 .shubhu-mp-menuIconActive {
-  color: #ff6b9f;
+  color: rgb(var(--mp-like-rgb));
 }
 
 .shubhu-mp-timerPill {
   margin-left: auto;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(201, 176, 255, 0.18);
-  color: #e2d3ff;
+  background: rgba(var(--theme-accent-rgb), 0.18);
+  color: var(--mp-accent-pale);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -1175,9 +1175,9 @@
 .shubhu-mp-placeholderTag {
   margin-left: auto;
   padding: 2px 5px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.14);
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.36);
+  color: rgba(var(--mp-ink-rgb), 0.36);
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1186,7 +1186,7 @@
 .shubhu-mp-menuDivider {
   height: 1px;
   margin: 5px 8px;
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(var(--mp-ink-rgb), 0.09);
 }
 
 /* ── Bottom sheets ───────────────────────────────────────────────────────── */
@@ -1200,11 +1200,11 @@
   flex-direction: column;
   max-height: 80dvh;
   padding: 8px 18px calc(16px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(201, 176, 255, 0.24);
+  border-top: 1px solid rgba(var(--theme-accent-rgb), 0.24);
   border-radius: 26px 26px 0 0;
-  background: linear-gradient(180deg, rgba(40, 26, 62, 0.97), rgba(16, 10, 28, 0.99));
+  background: var(--mp-sheet-bg);
   backdrop-filter: blur(28px);
-  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 -20px 60px rgba(var(--mp-shadow-rgb), 0.55);
 }
 
 .shubhu-mp-sheetIn {
@@ -1237,7 +1237,7 @@
   height: 4px;
   margin: 4px auto 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.26);
+  background: rgba(var(--mp-ink-rgb), 0.26);
   flex-shrink: 0;
 }
 
@@ -1253,7 +1253,7 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
 }
 
 .shubhu-mp-sheetClose {
@@ -1264,8 +1264,8 @@
   height: 30px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(var(--mp-ink-rgb), 0.08);
+  color: rgba(var(--mp-ink-rgb), 0.7);
   cursor: pointer;
 }
 
@@ -1280,9 +1280,9 @@
   gap: 12px;
   padding: 10px;
   margin-bottom: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.07);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--mp-ink-rgb), 0.06);
   flex-shrink: 0;
 }
 
@@ -1302,7 +1302,7 @@
 
 .shubhu-mp-sheetSong strong {
   font-size: 13.5px;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1310,7 +1310,7 @@
 
 .shubhu-mp-sheetSong small {
   font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(var(--mp-ink-rgb), 0.5);
 }
 
 .shubhu-mp-sheetList {
@@ -1327,9 +1327,9 @@
   gap: 10px;
   padding: 7px;
   margin-bottom: 8px;
-  border: 1px solid rgba(201, 176, 255, 0.16);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.16);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--mp-ink-rgb), 0.05);
 }
 
 .shubhu-mp-createIcon {
@@ -1341,8 +1341,8 @@
   flex-shrink: 0;
   border: 0;
   border-radius: 10px;
-  background: rgba(201, 176, 255, 0.18);
-  color: #d9c5ff;
+  background: rgba(var(--theme-accent-rgb), 0.18);
+  color: var(--mp-accent-soft);
   cursor: pointer;
 }
 
@@ -1357,18 +1357,18 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   font-family: inherit;
   font-size: 13px;
 }
 
 .shubhu-mp-createRow input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(var(--mp-ink-rgb), 0.45);
 }
 
 .shubhu-mp-emptyList {
   padding: 18px 8px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(var(--mp-ink-rgb), 0.5);
   font-size: 12px;
   text-align: center;
 }
@@ -1387,12 +1387,12 @@
 }
 
 .shubhu-mp-playlistRow:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--mp-ink-rgb), 0.05);
 }
 
 .shubhu-mp-playlistRowSelected {
-  background: rgba(201, 176, 255, 0.14);
-  border-color: rgba(201, 176, 255, 0.24);
+  background: rgba(var(--theme-accent-rgb), 0.14);
+  border-color: rgba(var(--theme-accent-rgb), 0.24);
 }
 
 .shubhu-mp-playlistThumb {
@@ -1404,8 +1404,8 @@
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 9px;
-  background: linear-gradient(145deg, rgba(201, 176, 255, 0.3), rgba(124, 58, 237, 0.3));
-  color: rgba(255, 255, 255, 0.75);
+  background: linear-gradient(145deg, rgba(var(--theme-accent-rgb), 0.3), rgba(var(--theme-secondary-rgb), 0.3));
+  color: rgba(var(--mp-ink-rgb), 0.75);
 }
 
 .shubhu-mp-playlistThumb svg {
@@ -1424,7 +1424,7 @@
 
 .shubhu-mp-playlistInfo strong {
   font-size: 13px;
-  color: #fff;
+  color: rgb(var(--mp-ink-rgb));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1432,7 +1432,7 @@
 
 .shubhu-mp-playlistInfo small {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(var(--mp-ink-rgb), 0.45);
 }
 
 .shubhu-mp-checkbox {
@@ -1442,9 +1442,9 @@
   width: 21px;
   height: 21px;
   flex-shrink: 0;
-  border: 1.5px solid rgba(255, 255, 255, 0.32);
+  border: 1.5px solid rgba(var(--mp-ink-rgb), 0.32);
   border-radius: 50%;
-  color: #1a0f2c;
+  color: var(--theme-accent-contrast);
 }
 
 .shubhu-mp-checkbox svg {
@@ -1453,8 +1453,8 @@
 }
 
 .shubhu-mp-checkboxOn {
-  border-color: #c9b0ff;
-  background: #c9b0ff;
+  border-color: var(--mp-accent-text);
+  background: var(--mp-accent-text);
 }
 
 .shubhu-mp-sheetFooter {
@@ -1466,10 +1466,10 @@
 
 .shubhu-mp-clearButton {
   padding: 0 18px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.18);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(var(--mp-ink-rgb), 0.05);
+  color: rgba(var(--mp-ink-rgb), 0.85);
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
@@ -1485,12 +1485,12 @@
   padding: 13px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #b79aff, #e2d3ff);
-  color: #1b0f2c;
+  background: linear-gradient(90deg, var(--mp-accent-deep), var(--mp-accent-soft));
+  color: var(--theme-accent-contrast);
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 10px 26px rgba(183, 154, 255, 0.3);
+  box-shadow: 0 10px 26px rgba(var(--theme-accent-rgb), 0.3);
   cursor: pointer;
   transition: transform 140ms ease, opacity 140ms ease;
 }
@@ -1512,16 +1512,16 @@
   gap: 12px;
   padding: 12px;
   margin-bottom: 14px;
-  border: 1px solid rgba(201, 176, 255, 0.18);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.18);
   border-radius: 14px;
-  background: rgba(201, 176, 255, 0.12);
+  background: rgba(var(--theme-accent-rgb), 0.12);
   flex-shrink: 0;
 }
 
 .shubhu-mp-sleepStatusIcon {
   width: 24px;
   height: 24px;
-  color: #d9c5ff;
+  color: var(--mp-accent-soft);
 }
 
 .shubhu-mp-sleepStatus span {
@@ -1532,14 +1532,14 @@
 
 .shubhu-mp-sleepStatus strong {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(var(--mp-ink-rgb), 0.7);
 }
 
 .shubhu-mp-sleepStatus small {
   font-size: 19px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #e7d8ff;
+  color: var(--mp-accent-pale);
 }
 
 .shubhu-mp-sleepGrid {
@@ -1556,10 +1556,10 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.1);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #e8def7;
+  background: rgba(var(--mp-ink-rgb), 0.07);
+  color: var(--mp-accent-pale);
   font-family: inherit;
   font-size: 12.5px;
   cursor: pointer;
@@ -1567,14 +1567,14 @@
 }
 
 .shubhu-mp-sleepOption:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(var(--mp-ink-rgb), 0.12);
 }
 
 .shubhu-mp-sleepOptionActive {
-  border-color: rgba(201, 176, 255, 0.55);
-  background: rgba(201, 176, 255, 0.22);
-  color: #fff;
-  box-shadow: 0 0 18px rgba(201, 176, 255, 0.18);
+  border-color: rgba(var(--theme-accent-rgb), 0.55);
+  background: rgba(var(--theme-accent-rgb), 0.22);
+  color: rgb(var(--mp-ink-rgb));
+  box-shadow: 0 0 18px rgba(var(--theme-accent-rgb), 0.18);
 }
 
 .shubhu-mp-sleepOptionWide {
@@ -1584,7 +1584,7 @@
 .shubhu-mp-sleepOptionIcon {
   width: 16px;
   height: 16px;
-  color: #b9a8d8;
+  color: var(--mp-accent-muted);
 }
 
 .shubhu-mp-customTimerRow {
@@ -1592,7 +1592,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(var(--mp-ink-rgb), 0.6);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -1600,11 +1600,11 @@
 .shubhu-mp-customTimerRow input {
   width: 96px;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(var(--mp-ink-rgb), 0.14);
   border-radius: 10px;
   outline: 0;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(var(--mp-ink-rgb), 0.08);
+  color: rgb(var(--mp-ink-rgb));
   font-family: inherit;
   font-size: 13px;
 }
@@ -1615,16 +1615,16 @@
 .shubhu-mp-heart {
   width: 22px;
   height: 22px;
-  color: #fff;
-  filter: drop-shadow(0 1px 5px rgba(0, 0, 0, 0.65));
+  color: rgb(var(--mp-ink-rgb));
+  filter: drop-shadow(0 1px 5px rgba(var(--mp-shadow-rgb), 0.65));
 }
 
 .shubhu-mp-heartFilled {
   width: 22px;
   height: 22px;
-  color: #ff4d8d;
-  fill: #ff4d8d;
-  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.55));
+  color: rgb(var(--mp-like-rgb));
+  fill: rgb(var(--mp-like-rgb));
+  filter: drop-shadow(0 1px 6px rgba(var(--mp-shadow-rgb), 0.55));
 }
 
 .shubhu-mp-chevron {
@@ -1635,7 +1635,7 @@
 .shubhu-mp-spinner {
   width: 25px;
   height: 25px;
-  color: #d9c5ff;
+  color: var(--mp-accent-soft);
   animation: spin 900ms linear infinite;
 }
 
@@ -1646,14 +1646,14 @@
   z-index: 40;
   transform: translateX(-50%);
   padding: 10px 16px;
-  border: 1px solid rgba(201, 176, 255, 0.25);
+  border: 1px solid rgba(var(--theme-accent-rgb), 0.25);
   border-radius: 999px;
-  background: rgba(20, 12, 34, 0.94);
+  background: var(--mp-surface-strong);
   backdrop-filter: blur(12px);
-  color: #eee4ff;
+  color: var(--mp-accent-pale);
   font-size: 12.5px;
   white-space: nowrap;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 30px rgba(var(--mp-shadow-rgb), 0.4);
   animation: toastIn 200ms ease-out both;
 }
 

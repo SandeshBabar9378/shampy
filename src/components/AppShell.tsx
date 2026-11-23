@@ -12,7 +12,14 @@ import { AppShellContext, type AppShellContextValue } from "@/context/AppShellCo
 import { usePlayer } from "@/context/PlayerContext";
 import type { Track } from "@/lib/types";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  phoneChromeOnly = false,
+}: {
+  children: React.ReactNode;
+  /** Keep only the phone nav + mini-player (used by the standalone /settings route). */
+  phoneChromeOnly?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { addToPlaylist } = usePlayer();
@@ -108,29 +115,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onOpenCreatePlaylist={() => openCreatePlaylist(null)}
           collapsed={sidebarCollapsed}
           onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          hideDesktop={phoneChromeOnly}
         />
 
         <div className="relative flex-1 flex flex-col h-full overflow-hidden bg-transparent">
-          <Navbar
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            onSearchSubmit={submitSearch}
-            showSearch={currentView === "search"}
-            onOpenProfile={openProfile}
-            onOpenSearch={() => setCurrentView("search")}
-          />
+          {/* Phone Home sits on the themed background; the night-sky scene lives inside MobileHome. */}
+          {currentView === "home" && !phoneChromeOnly && (
+            <div className="sm:hidden absolute inset-0 z-0 bg-[var(--background)] pointer-events-none" aria-hidden="true" />
+          )}
+          {!phoneChromeOnly && (
+            <Navbar
+              searchQuery={searchQuery}
+              onSearchChange={handleSearchChange}
+              onSearchSubmit={submitSearch}
+              showSearch={currentView === "search"}
+              onOpenProfile={openProfile}
+              onOpenSearch={() => setCurrentView("search")}
+              hideMobile={currentView === "home"}
+            />
+          )}
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="relative z-10 flex-1 min-h-0 flex flex-col overflow-hidden">
             {children}
           </div>
 
-          <Player embedded />
+          <Player embedded hideDesktop={phoneChromeOnly} />
         </div>
 
-        <RightPanel
-          isOpen={showRightPanel}
-          onClose={() => setShowRightPanel(false)}
-        />
+        {!phoneChromeOnly && (
+          <RightPanel
+            isOpen={showRightPanel}
+            onClose={() => setShowRightPanel(false)}
+          />
+        )}
 
         <UserProfileModal
           isOpen={isProfileOpen}
