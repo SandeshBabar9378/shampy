@@ -3,6 +3,8 @@
 import React from "react";
 import { Search } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useAppShell } from "@/context/AppShellContext";
+import { ShubhuBrand, ShubhuLogo } from "./ShubhuLogo";
 
 interface NavbarProps {
   searchQuery: string;
@@ -17,6 +19,7 @@ interface NavbarProps {
 
 export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch, onOpenProfile, onOpenSearch, hideMobile = false }: NavbarProps) {
   const { user } = usePlayer();
+  const { sidebarCollapsed } = useAppShell();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -27,17 +30,22 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
     <header className={`shubhu-app-header ${hideMobile ? "hidden sm:flex" : "flex"} h-16 px-4 sm:px-6 items-center justify-between sticky top-0 z-20 backdrop-blur-xl border-b`}>
       {/* Mobile: Top left Shubhu logo icon */}
       <div className="sm:hidden flex items-center gap-2 shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/icons/shubhu-logo.png"
-          alt="Shubhu"
-          width={32}
-          height={32}
-          className="w-8 h-8 shrink-0 object-contain"
-        />
+        <ShubhuLogo className="w-8 h-8" />
         {!showSearch && (
           <span className="font-display font-bold text-white text-lg tracking-tight">Shubhu</span>
         )}
+      </div>
+
+      {/* Desktop brand lives in the header only while the sidebar is collapsed.
+          While expanded it leaves the flex flow entirely, so the search field
+          starts at the header's content edge; opacity is the only animation. */}
+      <div
+        aria-hidden={!sidebarCollapsed}
+        className={`hidden sm:flex shrink-0 items-center transition-opacity duration-200 motion-reduce:transition-none ${
+          sidebarCollapsed ? "opacity-100" : "pointer-events-none absolute left-6 opacity-0"
+        }`}
+      >
+        <ShubhuBrand />
       </div>
 
       {/* Desktop Search bar — width is capped in CSS so it can shrink before

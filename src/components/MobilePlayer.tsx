@@ -36,6 +36,7 @@ import {
   AnimatedShuffle,
 } from "@/components/animations/MotionIcons";
 import { useDownload } from "@/hooks/useDownload";
+import { MobilePlayerDownloadButton } from "@/components/MobilePlayerDownloadButton";
 import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
 import { Track } from "@/lib/types";
 import { ReorderableList } from "@/components/ReorderableList";
@@ -92,6 +93,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     cancelSleepTimer,
     playbackError,
     clearPlaybackError,
+    downloadOnline,
   } = usePlayer();
 
   const [view, setView] = useState<MobileView>("player");
@@ -1199,7 +1201,16 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
               </div>
 
               <div className="shubhu-mp-songInfo">
-                <h1 className="shubhu-mp-songTitle">{currentTrack.title}</h1>
+                <div className="shubhu-mp-songTitleRow">
+                  <span className="shubhu-mp-songTitleSpacer" aria-hidden="true" />
+                  <h1 className="shubhu-mp-songTitle">{currentTrack.title}</h1>
+                  <MobilePlayerDownloadButton
+                    track={currentTrack}
+                    download={download}
+                    online={downloadOnline}
+                    onNotify={showToast}
+                  />
+                </div>
                 <p className="shubhu-mp-songArtist">{currentTrack.artist}</p>
               </div>
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Home, Search, Library, Plus, Heart, ChevronLeft, ChevronRight, Settings, Download } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import { PlaylistCollage } from "./PlaylistCollage";
+import { ShubhuBrand } from "./ShubhuLogo";
 import { DOWNLOADS_ENABLED } from "@/lib/features";
 
 interface SidebarProps {
@@ -74,47 +75,36 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
           collapsed ? "w-16" : "w-64"
         }`}
       >
-        {/* Brand */}
-        <div className="h-16 px-4 flex items-center justify-between shrink-0 border-b border-white/5">
-          {!collapsed ? (
-            <div className="flex items-center gap-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/icons/shubhu-logo.png"
-                alt="Shubhu"
-                width={36}
-                height={36}
-                className="w-9 h-9 shrink-0 object-contain"
-              />
-              <div>
-                <span className="font-display font-bold text-white text-lg tracking-tight block leading-tight">Shubhu</span>
-                <span className="text-[10px] text-emerald-400 font-mono tracking-wider block">MUSIC</span>
-              </div>
-            </div>
-          ) : (
+        {/* Brand when expanded; centered expand control when collapsed */}
+        <div
+          className={`h-16 shrink-0 border-b border-white/5 ${
+            collapsed
+              ? "px-2 flex items-center justify-center"
+              : "px-4 flex items-center justify-between"
+          }`}
+        >
+          {collapsed ? (
             <button
-              onClick={() => onSelectView("home")}
-              className="w-9 h-9 flex items-center justify-center mx-auto cursor-pointer"
-              title="Shubhu"
+              onClick={onToggleCollapsed}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-neutral-400 hover:text-white hover:bg-white/5 transition-colors motion-reduce:transition-none cursor-pointer"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/icons/shubhu-logo.png"
-                alt="Shubhu"
-                width={36}
-                height={36}
-                className="w-full h-full object-contain"
-              />
+              <ChevronRight className="w-5 h-5" />
             </button>
+          ) : (
+            <>
+              <ShubhuBrand />
+              <button
+                onClick={onToggleCollapsed}
+                className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
           )}
-
-          <button
-            onClick={onToggleCollapsed}
-            className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
         </div>
 
         {/* Navigation items */}

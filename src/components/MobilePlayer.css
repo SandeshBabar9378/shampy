@@ -403,6 +403,92 @@
   flex-shrink: 0;
 }
 
+/* The equal-width spacer keeps the title optically centred while the download
+   button sits in the same row on its right. */
+.shubhu-mp-songTitleRow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  column-gap: 2px;
+}
+
+.shubhu-mp-songTitleSpacer {
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+}
+
+.shubhu-mp-downloadButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(var(--mp-ink-rgb), 0.07);
+  color: rgb(var(--mp-ink-rgb));
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.shubhu-mp-downloadButton:hover {
+  background: rgba(var(--mp-ink-rgb), 0.14);
+}
+
+.shubhu-mp-downloadButton:active {
+  transform: scale(0.94);
+}
+
+.shubhu-mp-downloadButton:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.shubhu-mp-downloadButton:disabled:active {
+  transform: none;
+}
+
+.shubhu-mp-downloadButton[data-state="done"] {
+  color: var(--mp-positive);
+}
+
+.shubhu-mp-downloadButton[data-state="failed"] {
+  color: rgb(var(--mp-negative-rgb));
+}
+
+.shubhu-mp-downloadIcon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  animation: shubhuMpDownloadIconIn 160ms ease-out both;
+}
+
+.shubhu-mp-downloadIcon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.shubhu-mp-downloadRing {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.shubhu-mp-downloadRingTrack {
+  stroke: rgba(var(--mp-ink-rgb), 0.2);
+}
+
+.shubhu-mp-downloadRingValue {
+  /* Geometry only: dashoffset is never transitioned or animated. */
+  stroke: currentColor;
+}
+
 .shubhu-mp-songTitle {
   margin: 0;
   font-size: clamp(21px, 5.6vw, 27px);
@@ -1739,6 +1825,17 @@
   }
 }
 
+@keyframes shubhuMpDownloadIconIn {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shubhu-mp-bgLayerIn,
   .shubhu-mp-bgLayerOut,
@@ -1752,5 +1849,17 @@
   .shubhu-mp-currentArt,
   .shubhu-mp-lyricLine {
     transition: none;
+  }
+
+  .shubhu-mp-downloadButton {
+    transition: none;
+  }
+
+  .shubhu-mp-downloadButton:active {
+    transform: none;
+  }
+
+  .shubhu-mp-downloadIcon {
+    animation: none;
   }
 }
