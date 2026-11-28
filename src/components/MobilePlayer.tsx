@@ -30,6 +30,7 @@ import {
   type SleepTimerOption,
 } from "@/context/PlayerContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
+import { useDataMode } from "@/hooks/useDataMode";
 import {
   AnimatedHeart,
   AnimatedRepeat,
@@ -95,6 +96,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     clearPlaybackError,
     downloadOnline,
   } = usePlayer();
+  const { mode } = useDataMode();
 
   const [view, setView] = useState<MobileView>("player");
   const [showMenu, setShowMenu] = useState(false);
@@ -183,7 +185,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const [stageWidth, setStageWidth] = useState(320);
 
   const toastTimer = useRef<number | null>(null);
-  const cover = getStableTrackArtworkUrl(currentTrack, "max");
+  const cover = getStableTrackArtworkUrl(currentTrack, "hq", mode);
   const dominantColor = useDominantColor(cover);
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
   const download = useDownload(currentTrack);
@@ -236,11 +238,15 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!currentTrack) return;
     let cancelled = false;
-    setLyricsLoading(true);
-    setLyricLines([]);
-    setActiveLyric(-1);
-    setTranscriptions([]);
-    setTranscriptDisabled(false);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLyricsLoading(true);
+        setLyricLines([]);
+        setActiveLyric(-1);
+        setTranscriptions([]);
+        setTranscriptDisabled(false);
+      }
+    });
 
     const query = new URLSearchParams({
       title: currentTrack.title,
@@ -291,7 +297,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       if (currentTime >= lyricLines[i].time) idx = i;
       else break;
     }
-    setActiveLyric((prev) => (prev === idx ? prev : idx));
+    queueMicrotask(() => setActiveLyric((prev) => (prev === idx ? prev : idx)));
   }, [currentTime, lyricLines]);
 
   useEffect(() => {
@@ -310,8 +316,12 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
       return;
     }
     let cancelled = false;
-    setTranscriptLoading(true);
-    setTranscriptDisabled(false);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setTranscriptLoading(true);
+        setTranscriptDisabled(false);
+      }
+    });
 
     loadTranscripts(currentTrack.id, lyricLines.map((line) => line.text)).then(
       (result) => {
@@ -441,7 +451,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
     ? Math.min(1, Math.abs(dragX) / Math.max(1, swipeThreshold))
     : 0;
   const neighbourSong = dragX < 0 ? nextSong : previousSong;
-  const neighbourUrl = getStableTrackArtworkUrl(neighbourSong, "max");
+  const neighbourUrl = getStableTrackArtworkUrl(neighbourSong, "hq", mode);
 
   // ── Menu / sheet handlers ────────────────────────────────────────────────────
   const closeOverlays = () => {
@@ -987,7 +997,7 @@ export function MobilePlayer({ onClose }: { onClose: () => void }) {
   const queueItemContent = (track: Track, isCurrent: boolean) => (
     <>
       <img
-        src={getStableTrackArtworkUrl(track, "max")}
+        src={getStableTrackArtworkUrl(track, "hq", mode)}
         alt=""
         crossOrigin="anonymous"
         referrerPolicy="no-referrer"

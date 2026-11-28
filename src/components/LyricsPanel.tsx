@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Mic2, X, Music2 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { fetchSyncedLyrics, LyricLine } from "@/lib/lyrics";
 import { classifyScript, extractBrackets } from "@/lib/script";
 
@@ -17,15 +18,30 @@ interface TransliterationResponse {
 
 export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
   const { currentTrack, currentTime, duration, seek } = usePlayer();
+  const { mode } = useDataMode();
+  // Low mode fetches once per open, never on track change. The guard is
+  // released when a request is cancelled (React StrictMode / dependency change)
+  // so a cancelled first attempt can never leave the panel stuck on loading.
+  const fetchedOnOpenRef = useRef(false);
   const [lines, setLines] = useState<LyricLine[]>([]);
   const [plainText, setPlainText] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [instrumental, setInstrumental] = useState<boolean>(false);
   const [transliterations, setTransliterations] = useState<Record<string, string>>({});
   const activeLineRef = useRef<HTMLDivElement | null>(null);
+  // Primitive track fields keep the fetch effect stable: PlayerContext updates
+  // unrelated state (time, volume…) without restarting the lyrics request.
+  const trackId = currentTrack?.id;
+  const trackTitle = currentTrack?.title ?? "";
+  const trackArtist = currentTrack?.artist ?? "";
+  const trackAlbum = currentTrack?.album ?? "";
+  const trackDuration = currentTrack?.duration ?? 0;
 
   useEffect(() => {
-    if (!currentTrack) return;
+    if (!trackId) return;
+    if (mode === "low" && fetchedOnOpenRef.current) return;
+    fetchedOnOpenRef.current = true;
+    let settled = false;
     let isCancelled = false;
     setLoading(true);
     setLines([]);
@@ -33,7 +49,7 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
     setInstrumental(false);
     setTransliterations({});
 
-    fetchSyncedLyrics(currentTrack.title, currentTrack.artist, currentTrack.duration || duration, currentTrack.album)
+    fetchSyncedLyrics(trackTitle, trackArtist, trackDuration || duration, trackAlbum)
       .then(async (res) => {
         if (isCancelled) return;
         setLines(res.lines);
@@ -42,7 +58,7 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
         setLoading(false);
 
         if (res.lines.length > 0) {
-          const songKey = `shubhu_translit_v3_${currentTrack.title}_${currentTrack.artist}`.toLowerCase();
+          const songKey = `shubhu_translit_v3_${trackTitle}_${trackArtist}`.toLowerCase();
           try {
             const cached = localStorage.getItem(songKey);
             if (cached) {
@@ -111,13 +127,20 @@ export function LyricsPanel({ onClose, variant }: LyricsPanelProps) {
         }
       })
       .catch(() => {
+        // Empty/error responses are a valid terminal state, not a pending one.
+      })
+      .finally(() => {
+        settled = true;
         if (!isCancelled) setLoading(false);
       });
 
     return () => {
       isCancelled = true;
+      // A cancelled attempt must not block the next effect run (StrictMode
+      // replays effects in dev), otherwise loading would stay true forever.
+      if (!settled) fetchedOnOpenRef.current = false;
     };
-  }, [currentTrack, duration]);
+  }, [trackId, trackTitle, trackArtist, trackAlbum, trackDuration, duration, mode]);
 
   // Find current line index based on audio currentTime
   let activeIndex = -1;

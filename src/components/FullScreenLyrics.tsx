@@ -12,6 +12,7 @@ import {
   AnimatedShuffle,
 } from "@/components/animations/MotionIcons";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { parseLRC } from "@/lib/lyrics";
 import {
   buildFallbackTranscripts,
@@ -66,6 +67,8 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
     sleepEndsAt,
     sleepAtEndOfSong,
   } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
 
   const [lyricsData, setLyricsData] = useState<LyricsData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,15 +81,20 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
   const [addedSuccess, setAddedSuccess] = useState(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
+  // Low mode: lyrics/transcript are fetched when the panel opens, not per track.
+  const fetchedOnOpenRef = useRef(false);
+  const transcriptForRef = useRef<LyricsData | null>(null);
 
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
   const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const volumePercent = Math.min(100, Math.max(0, (isMuted ? 0 : volume) * 100));
   const isSleepActive = sleepEndsAt !== null || sleepAtEndOfSong;
 
-  // Fetch lyrics whenever current track changes
+  // High mode: fetch on every track change. Low mode: only on open.
   useEffect(() => {
     if (!currentTrack || !isOpen) return;
+    if (mode === "low" && fetchedOnOpenRef.current) return;
+    fetchedOnOpenRef.current = true;
 
     let cancelled = false;
     setLoading(true);
@@ -145,14 +153,20 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
     return () => {
       cancelled = true;
     };
-  }, [currentTrack?.id, isOpen]);
+  }, [currentTrack?.id, isOpen, mode]);
+
+  useEffect(() => {
+    if (!isOpen) fetchedOnOpenRef.current = false;
+  }, [isOpen]);
 
   // Transcribe all lyric lines to Roman script (English letters) using /api/transcribe
   useEffect(() => {
     if (!lyricsData?.lines?.length || !currentTrack?.id) {
-      setRomanTranscripts([]);
+      queueMicrotask(() => setRomanTranscripts([]));
       return;
     }
+    if (mode === "low" && transcriptForRef.current === lyricsData) return;
+    transcriptForRef.current = lyricsData;
 
     const lines = lyricsData.lines.map((l) => l.text);
     // New cache version: lyrics-roman-v1 may contain original-script entries from
@@ -166,8 +180,10 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
         if (cached) {
           const parsed: unknown = JSON.parse(cached);
           if (isValidTranscriptList(lines, parsed)) {
-            setRomanTranscripts(parsed);
-            setTranscriptionDisabled(false);
+            queueMicrotask(() => {
+              setRomanTranscripts(parsed);
+              setTranscriptionDisabled(false);
+            });
             return;
           }
           localStorage.removeItem(cacheKey);
@@ -178,8 +194,12 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
     }
 
     let cancelled = false;
-    setTranscribing(true);
-    setTranscriptionDisabled(false);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setTranscribing(true);
+        setTranscriptionDisabled(false);
+      }
+    });
 
     fetch("/api/transcribe", {
       method: "POST",
@@ -226,7 +246,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
     return () => {
       cancelled = true;
     };
-  }, [lyricsData, currentTrack?.id]);
+  }, [lyricsData, currentTrack?.id, mode]);
 
   // Find active line index
   let activeIndex = -1;
@@ -252,7 +272,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
 
   if (!isOpen) return null;
 
-  const cover = getTrackArtworkUrl(currentTrack, "max");
+  const cover = getTrackArtworkUrl(currentTrack, "hq", mode);
 
   return (
     <div data-theme-region="legacy-dark" className="shubhu-ui-controls fixed inset-0 z-50 flex flex-col bg-neutral-950 text-white select-none overflow-hidden animate-in fade-in duration-300">
@@ -297,8 +317,10 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
                 alt={currentTrack?.title || "Album art"}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
-                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
                 }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
@@ -416,7 +438,7 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
                   return (
                     <button
                       key={`lyrics-q-${track.id}-${i}`}
-                      onClick={() => playTrack(track, queue)}
+                      onClick={() => playTrack(track, queue, playOptions)}
                       className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-colors cursor-pointer group ${
                         isCurrent
                           ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
@@ -424,12 +446,14 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
                       }`}
                     >
                       <img
-                        src={getTrackArtworkUrl(track, "max")}
+                        src={getTrackArtworkUrl(track, "hq", mode)}
                         alt={track.title}
                         crossOrigin="anonymous"
                         referrerPolicy="no-referrer"
+                        loading="lazy"
+                        decoding="async"
                         onError={(e) => {
-                          e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+                          e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
                         }}
                         className="w-9 h-9 rounded-lg object-cover shrink-0 bg-neutral-800"
                       />
@@ -459,8 +483,10 @@ export function FullScreenLyrics({ isOpen, onClose }: { isOpen: boolean; onClose
             alt={currentTrack?.title || "Track"}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
+            loading="lazy"
+            decoding="async"
             onError={(e) => {
-              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
             }}
             className="w-12 h-12 rounded-xl object-cover shrink-0 bg-neutral-800 shadow"
           />

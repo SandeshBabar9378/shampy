@@ -15,6 +15,8 @@
  */
 
 import type { Track } from "./types";
+import { getActiveDataMode } from "@/lib/dataMode";
+import type { StreamQuality } from "./ytStream";
 import { audioStorage, isQuotaExceededError, type StoredAudioRecord } from "./audioStorage";
 import {
   getDownloadTestFileSize,
@@ -75,6 +77,8 @@ export interface DownloadJob {
   source?: string;
   isTest?: boolean;
   youtubeId?: string;
+  /** Data mode captured when this download was queued. */
+  quality?: StreamQuality;
 }
 
 /** A single enqueue call. A batch is only successful when no track failed. */
@@ -111,6 +115,7 @@ export interface DownloadRecordMeta {
   groupTitle?: string;
   groupIndex?: number;
   groupTotal?: number;
+  quality?: StreamQuality;
 }
 
 export interface DownloadSnapshot {
@@ -161,6 +166,7 @@ export interface DownloadCompletedRecord {
   size: number;
   savedAt: number;
   youtubeId?: string;
+  quality?: StreamQuality;
   groupKind?: DownloadGroupKind;
   groupId?: string;
   groupTitle?: string;
@@ -199,6 +205,7 @@ function recordToMeta(record: StoredAudioRecord): DownloadRecordMeta {
     savedAt: record.savedAt,
     sourceId: record.sourceId,
     youtubeId: record.youtubeId,
+    quality: record.quality,
     groupKind: record.groupKind,
     groupId: record.groupId,
     groupTitle: record.groupTitle,
@@ -231,6 +238,7 @@ function jobFromTrack(track: Track, group?: DownloadGroupInfo, batchId?: string)
     source: track.source,
     isTest: track.isTest,
     youtubeId: track.youtubeId,
+    quality: (track as Track & { quality?: StreamQuality }).quality,
   };
 }
 
@@ -493,9 +501,14 @@ class DownloadManager {
     const batch = this.batches.get(emptyBatchId)!;
     const groupTotal = group?.total ?? tracks.length;
     const startIndex = group?.index ?? 0;
+    // Capture once per batch so a mode change mid-download cannot retag it.
+    const capturedQuality = getActiveDataMode();
 
-    tracks.forEach((track, position) => {
-      if (!track?.id) return;
+    tracks.forEach((rawTrack, position) => {
+      if (!rawTrack?.id) return;
+      const track = { ...rawTrack, quality: capturedQuality } as Track & {
+        quality?: StreamQuality;
+      };
       this.tracks.set(track.id, track);
       if (this.records.has(track.id)) {
         result.duplicates.push(track.id);
@@ -565,6 +578,7 @@ class DownloadManager {
       job.source = track.source ?? job.source;
       job.isTest = track.isTest ?? job.isTest;
       job.youtubeId = track.youtubeId ?? job.youtubeId;
+      job.quality = (track as Track & { quality?: StreamQuality }).quality ?? job.quality;
       if (group) {
         job.groupKind = group.kind;
         job.groupId = group.id;
@@ -651,7 +665,8 @@ class DownloadManager {
           source: job.source as Track["source"],
           isTest: job.isTest,
           youtubeId: job.youtubeId,
-        };
+          quality: job.quality,
+        } as Track & { quality?: StreamQuality };
     this.tracks.set(id, track);
     this.queue.push({
       track,
@@ -855,6 +870,7 @@ class DownloadManager {
         coverUrl: job.coverUrl,
         duration: job.duration,
         youtubeId: job.youtubeId,
+        quality: job.quality,
         groupKind: entry.group?.kind,
         groupId: entry.group?.id,
         groupTitle: entry.group?.title,
@@ -872,6 +888,7 @@ class DownloadManager {
         size: received,
         savedAt,
         youtubeId: job.youtubeId,
+        quality: job.quality,
         groupKind: entry.group?.kind,
         groupId: entry.group?.id,
         groupTitle: entry.group?.title,

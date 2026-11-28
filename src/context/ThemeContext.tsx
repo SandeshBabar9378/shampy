@@ -38,7 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     const initial = isThemeId(storedTheme) ? storedTheme : DEFAULT_THEME;
 
-    setThemeState(initial);
+    queueMicrotask(() => setThemeState(initial));
     document.documentElement.setAttribute("data-theme", initial);
     document.getElementById("shubhu-theme-prepaint")?.remove();
 

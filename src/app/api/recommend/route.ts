@@ -131,9 +131,11 @@ export async function GET(req: NextRequest) {
   const section: Section =
     rawSection === "queue" ? "queue" : rawSection === "most" ? "most" : rawSection === "for-you" ? "for-you" : "recommended";
   const rawLimit = Number(params.get("limit"));
+  const mode = params.get("mode") === "low" ? "low" : "high";
+  const maxLimit = mode === "low" ? Math.min(12, LIMITS.max) : LIMITS.max;
   const defaultLimit = section === "queue" ? LIMITS.queueDefault : LIMITS.default;
   const limit = Math.min(
-    LIMITS.max,
+    maxLimit,
     Math.max(1, Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : defaultLimit),
   );
   const seedVideoId = (params.get("seedVideoId") ?? "").trim();

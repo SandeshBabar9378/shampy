@@ -7,6 +7,7 @@ import {
 import { usePlayer } from "@/context/PlayerContext";
 import { LyricsPanel } from "@/components/LyricsPanel";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
+import { useDataMode } from "@/hooks/useDataMode";
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -15,12 +16,14 @@ interface RightPanelProps {
 
 export function RightPanel({ isOpen, onClose }: RightPanelProps) {
   const { currentTrack, isPlaying, togglePlay, queue, playTrack } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const [subTab, setSubTab] = useState<"upnext" | "lyrics">("upnext");
   const [isCollapsed, setIsCollapsed] = useState(true);
 
   if (!isOpen) return null;
 
-  const cover = getTrackArtworkUrl(currentTrack, "max");
+  const cover = getTrackArtworkUrl(currentTrack, "hq", mode);
 
   // Collapsed strip matching the left sidebar collapsed width (~60px)
   if (isCollapsed) {
@@ -55,8 +58,10 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
               alt={currentTrack.title}
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
               onError={(e) => {
-                e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
               }}
               className="w-full h-full object-cover"
             />
@@ -77,7 +82,7 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             return (
               <button
                 key={`collapsed-q-${track.id}-${i}`}
-                onClick={() => playTrack(track, queue)}
+                onClick={() => playTrack(track, queue, playOptions)}
                 className={`w-9 h-9 rounded-lg overflow-hidden shrink-0 transition-transform hover:scale-105 cursor-pointer border ${
                   isCurrent
                     ? "border-emerald-400 ring-1 ring-emerald-400 shadow-md"
@@ -86,12 +91,14 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
                 title={`${track.title} - ${track.artist}`}
               >
                 <img
-                  src={getTrackArtworkUrl(track, "max")}
+                  src={getTrackArtworkUrl(track, "hq", mode)}
                   alt={track.title}
                   crossOrigin="anonymous"
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
-                    e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+                    e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
                   }}
                   className="w-full h-full object-cover"
                 />
@@ -129,8 +136,10 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
             alt={currentTrack?.title || "Now Playing"}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
+            loading="lazy"
+            decoding="async"
             onError={(e) => {
-              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+              e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
             }}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
@@ -202,7 +211,7 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
                 return (
                   <button
                     key={`${track.id}-${i}`}
-                    onClick={() => playTrack(track, queue)}
+                    onClick={() => playTrack(track, queue, playOptions)}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-all cursor-pointer group ${
                       isCurrent
                         ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
@@ -210,12 +219,14 @@ export function RightPanel({ isOpen, onClose }: RightPanelProps) {
                     }`}
                   >
                     <img
-                      src={getTrackArtworkUrl(track, "max")}
+                      src={getTrackArtworkUrl(track, "hq", mode)}
                       alt={track.title}
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
-                        e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+                        e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
                       }}
                       className="w-10 h-10 rounded-lg object-cover shrink-0 bg-neutral-800 shadow"
                     />

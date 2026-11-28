@@ -82,7 +82,7 @@ export function CreatePlaylistModal({ isOpen, onClose, onCreated, playlist, onUp
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Late Night Vibes"
               required
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white focus:border-emerald-500 transition-colors"
               autoFocus
             />
           </div>
@@ -96,7 +96,7 @@ export function CreatePlaylistModal({ isOpen, onClose, onCreated, playlist, onUp
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add an optional description"
               rows={3}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors resize-none"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white focus:border-emerald-500 transition-colors resize-none"
             />
           </div>
 

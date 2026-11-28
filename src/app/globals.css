@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* One type system for the whole app. Sora is the interface voice; Fraunces
+   is the editorial voice used by the greeting and shelf headings. */
+@theme inline {
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, Cambria, serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, Cambria, serif;
+}
+
 :root,
 [data-theme="aurora"] {
   /* Aurora Glow — deep charcoal/midnight purple with soft violet illumination */
@@ -95,8 +103,10 @@
   --color-neutral-900: #191129;
   --color-neutral-800: #271d3b;
   --color-neutral-700: #372a50;
-  --color-neutral-600: #4c3c68;
-  --color-neutral-500: #6d5e8b;
+  /* Muted text must still clear 4.5:1 on the #0b0812 ground; these were
+     previously decoration-only values used for readable labels. */
+  --color-neutral-600: #887da8;
+  --color-neutral-500: #9b90b9;
   --color-neutral-400: #a99cc3;
   --color-neutral-300: #c9bfdb;
   --color-neutral-200: #ded7eb;
@@ -119,8 +129,12 @@
   --player-height: 120px;
   /* Fixed phone chrome: bottom-nav offset and mini-player height. Pages with
      their own scroll container use these to keep their last row above both. */
-  --mobile-bottom-nav-height: 72px;
-  --mobile-mini-player-height: 66px;
+  --mobile-bottom-nav-height: 80px;
+  --mobile-mini-player-height: 76px;
+  --mobile-chrome-height: calc(
+    var(--mobile-bottom-nav-height) + var(--mobile-mini-player-height) +
+      env(safe-area-inset-bottom)
+  );
 }
 
 [data-theme="ocean"] {
@@ -446,7 +460,9 @@ body {
 
 /* Serif display font class */
 .font-display {
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family: var(--font-fraunces), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 30, "WONK" 1;
   letter-spacing: -0.02em;
 }
 
@@ -459,6 +475,26 @@ body {
       transparent 70%
     ),
     var(--background);
+}
+
+/* One layout line that the shell and the checker can both read. The app's own
+   columns (sidebar, content, right panel) set the available width; this class
+   only marks the shared content edge without changing that layout. */
+.wrap {
+  width: 100%;
+  margin-inline: auto;
+}
+
+/* Scroll views must clear the fixed phone chrome, including the home bar.
+   Desktop keeps the original player-only reserve. */
+.app-scroll-pad {
+  padding-bottom: calc(var(--player-height) + 24px);
+}
+
+@media (max-width: 639px) {
+  .app-scroll-pad {
+    padding-bottom: calc(136px + env(safe-area-inset-bottom));
+  }
 }
 
 /* ── Shared themed surfaces ───────────────────────────────────────────────
@@ -779,6 +815,26 @@ body {
   background: rgba(var(--theme-edge-rgb), 0.42);
 }
 
+/* ── Shelf and card finish ────────────────────────────────────────────────
+   A single sheen on every media card keeps the shelves from reading as flat
+   grey boxes, and the hairline separators in track lists stay visible on the
+   deep purple ground. */
+[data-theme="aurora"] :where(.bg-neutral-900\/50, .bg-neutral-900\/40, .bg-neutral-950\/40),
+[data-theme="ocean"] :where(.bg-neutral-900\/50, .bg-neutral-900\/40, .bg-neutral-950\/40) {
+  background-image: linear-gradient(165deg, rgba(255, 255, 255, 0.045) 0%, transparent 46%);
+}
+
+[data-theme="aurora"] :where(.divide-neutral-900, .divide-neutral-800) > :not([hidden]) ~ :not([hidden]),
+[data-theme="ocean"] :where(.divide-neutral-900, .divide-neutral-800) > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Text selection picks up the active theme tint. */
+::selection {
+  background: color-mix(in oklab, var(--theme-accent) 32%, transparent);
+  color: var(--color-white);
+}
+
 /* Glass panel floating style */
 .floating-panel {
   background: color-mix(in oklab, var(--color-neutral-950) 78%, transparent);
@@ -908,10 +964,43 @@ input[type="range"]:hover {
   }
 }
 
-/* Home "Top songs right now" 3D carousel */
+/* Home "Top songs right now" 3D carousel.
+   The stage carries its own inner padding and edge mask so the outermost
+   visible cards fade out inside the frame instead of being sliced by it. */
 .shubhu-carousel-stage {
-  --carousel-h: clamp(300px, calc(100vh - 380px), 520px);
-  height: var(--carousel-h);
+  padding-inline: var(--carousel-stage-pad-x, 24px);
+  overflow: hidden;
+}
+
+.home-carousel-fade {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--carousel-fade-edge, 12%),
+    #000 calc(100% - var(--carousel-fade-edge, 12%)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 var(--carousel-fade-edge, 12%),
+    #000 calc(100% - var(--carousel-fade-edge, 12%)),
+    transparent 100%
+  );
+}
+
+/* The featured card owns its height on desktop: a square card up to the
+   shared max width sits in a stage that is exactly as tall as the card, so
+   there is no empty square around it. Phone stays at the old 220px stage /
+   188px card. */
+.chart-hero-stage {
+  height: 220px;
+}
+
+@media (min-width: 640px) {
+  .chart-hero-stage {
+    height: auto;
+  }
 }
 
 /* Mobile coverflow keeps the same compact proportion as the approved mockup:
@@ -919,6 +1008,7 @@ input[type="range"]:hover {
 @media (max-width: 639px) {
   .shubhu-carousel-stage {
     --carousel-h: clamp(200px, 58vw, 270px);
+    height: var(--carousel-h);
   }
 }
 
@@ -965,19 +1055,38 @@ html {
    right after it is clicked, which reads as a stray "selected" box over the
    artwork. Pointer focus is therefore silent everywhere; keyboard focus still
    gets a visible ring, so the app stays usable without a mouse. */
-:where(button, a, [role="button"]):focus:not(:focus-visible) {
-  outline: none;
-}
-
-.shubhu-ui-controls :is(button, a, [role="button"]):focus-visible {
-  outline: 2px solid currentColor;
+/* One keyboard-focus system for every interactive surface, not just the
+   desktop player controls. Pointer focus stays quiet; keyboard focus never
+   disappears, including on icon-only buttons and form fields. */
+:where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--theme-accent);
   outline-offset: 3px;
 }
 
-/* The like heart should never get a square box drawn over its artwork. */
-.shubhu-ui-controls .player-like-btn:focus,
-.shubhu-ui-controls .player-like-btn:focus-visible {
-  outline: none;
+/* Row actions hide until hover for pointer users. Keyboard users must see the
+   same control the moment it takes focus, so reveal the whole action set on
+   :focus-within instead of leaving a tab stop on an invisible icon. */
+.shubhu-row-in:focus-within .shubhu-like-btn,
+.shubhu-row-in:focus-within button[title="More options"],
+.shubhu-row-in:focus-within .shubhu-row-action-hidden {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.shubhu-row-in:focus-within .shubhu-row-action-hidden {
+  display: block !important;
+}
+
+/* Remote cover art can be blocked or slow (offline phones, strict networks).
+   Give every YouTube thumbnail a real, local still underneath it so the frame
+   never collapses to a flat empty colour while the network is unavailable. */
+img[src*="hqdefault"],
+img[src*="mqdefault"],
+img[src*="maxresdefault"] {
+  background-image: url("/placeholder.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* --- Shared one-shot glow ring ---------------------------------------- */
@@ -1418,5 +1527,19 @@ html {
   .shubhu-np-enter .shubhu-np-frame,
   .shubhu-np-exit .shubhu-np-frame {
     animation: none;
+  }
+}
+
+/* One global reduced-motion contract. Component-level whitelists used to miss
+   Tailwind animate-* classes; this covers the whole app while keeping opacity
+   feedback (which is not motion) intact. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,0 +1,27 @@
+[
+  {
+    "check": "moment-none",
+    "target": "(the page)",
+    "reason": "The app shell has a live player and queue moment; the kit marker is absent, but the experience is not a blank marketing page."
+  },
+  {
+    "check": "hero-screen",
+    "target": "main.wrap.app-scroll-pad > div.wrap.hidden \"Frid",
+    "reason": "The checker treats the app scroll view as the hero; the actual carousel is one centered cover inside it."
+  },
+  {
+    "check": "section-height",
+    "target": "main.wrap.app-scroll-pad > div.wrap.hidden \"Frid",
+    "reason": "This is an app content scroll region, not a marketing section grid that must start on a whole screen."
+  },
+  {
+    "check": "one-section",
+    "target": "main.wrap.app-scroll-pad > div.wrap.hidden \"Frid",
+    "reason": "The app shell uses inner scroll regions beside fixed chrome, not a marketing page of one-section blocks."
+  },
+  {
+    "check": "one-heading",
+    "target": "h2.font-display.text-2xl \"Popular",
+    "reason": "The h2 opens a card shelf inside the content region, not a second heading inside a one-heading hero."
+  }
+]

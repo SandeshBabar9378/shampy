@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Disc3, DownloadCloud, Play } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { TrackRow } from "@/components/TrackRow";
 import { DownloadStatusList } from "@/components/DownloadStatusList";
 import { Track } from "@/lib/types";
@@ -59,6 +60,8 @@ function testAlbumData(): AlbumData {
 
 export function AlbumView({ id }: { id: string }) {
   const { playTrack, downloadTracks, offlineIds } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const [album, setAlbum] = useState<AlbumData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,13 +69,21 @@ export function AlbumView({ id }: { id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setDownloadNotice(null);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+        setDownloadNotice(null);
+      }
+    });
 
     if (id === TEST_ALBUM_ID) {
-      setAlbum(testAlbumData());
-      setLoading(false);
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setAlbum(testAlbumData());
+          setLoading(false);
+        }
+      });
       return () => {
         cancelled = true;
       };
@@ -136,7 +147,7 @@ export function AlbumView({ id }: { id: string }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
+      <main className="app-scroll-pad flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 scrollbar-thin scrollbar-thumb-neutral-800">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-3 sm:mb-6"
@@ -159,14 +170,27 @@ export function AlbumView({ id }: { id: string }) {
           ) : (
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
               {/* Album header */}
-              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl bg-gradient-to-b from-neutral-800/70 to-neutral-950/40">
-                <div className="w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-lg overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-800/70 to-neutral-950/40 p-4 shadow-2xl sm:rounded-3xl sm:p-8">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-30"
+                  style={{
+                    backgroundImage: `url("${album.thumbnail || getDefaultArtworkFallbackUrl()}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: "blur(60px) saturate(1.3)",
+                  }}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/55 to-transparent" />
+                <div className="relative z-10 w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-lg overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
                   {album.thumbnail ? (
                     <img
                       src={album.thumbnail}
                       alt={album.title}
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = getDefaultArtworkFallbackUrl();
                       }}
@@ -179,7 +203,7 @@ export function AlbumView({ id }: { id: string }) {
                   )}
                 </div>
 
-                <div className="text-center sm:text-left flex-1 min-w-0">
+                <div className="relative z-10 min-w-0 flex-1 text-center sm:text-left">
                   <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">ALBUM</p>
                   <h1 className="font-display text-3xl sm:text-5xl font-bold text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
                     {album.title}
@@ -196,7 +220,7 @@ export function AlbumView({ id }: { id: string }) {
               <div className="flex items-center gap-4">
                 {tracks.length > 0 && (
                   <button
-                    onClick={() => playTrack(tracks[0], tracks)}
+                    onClick={() => playTrack(tracks[0], tracks, playOptions)}
                     className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
                     title="Play Album"
                   >

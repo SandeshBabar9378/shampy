@@ -9,9 +9,12 @@ interface PlaylistCardProps {
   playlist: Playlist;
   onClick: () => void;
   onPlay?: () => void;
+  /** Small visual variant so repeated shelves do not read as identical cards. */
+  variant?: number;
+  className?: string;
 }
 
-export function PlaylistCard({ playlist, onClick, onPlay }: PlaylistCardProps) {
+export function PlaylistCard({ playlist, onClick, onPlay, variant = 0, className = "" }: PlaylistCardProps) {
   const getPlaylistTrackCount = (playlistId: string): number => {
     if (typeof window === "undefined") return playlist.tracks?.length ?? playlist.trackCount ?? 0;
     try {
@@ -29,7 +32,7 @@ export function PlaylistCard({ playlist, onClick, onPlay }: PlaylistCardProps) {
   return (
     <div
       onClick={onClick}
-      className="group relative bg-neutral-900/50 hover:bg-neutral-800/80 p-3.5 rounded-2xl transition-all duration-300 cursor-pointer flex flex-col border border-white/5 hover:border-emerald-500/20 shadow-md hover:shadow-2xl hover:-translate-y-1.5 select-none"
+      className={`card-variant-${variant % 4} ${className || "w-[160px] sm:w-[172px] md:w-[180px] shrink-0"} group relative flex max-w-none flex-col bg-neutral-900/50 hover:bg-neutral-800/80 p-3.5 rounded-2xl transition-all duration-300 cursor-pointer border border-white/5 hover:border-[var(--theme-accent)]/20 shadow-md hover:shadow-2xl hover:-translate-y-1.5 select-none`}
     >
       <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-neutral-800 shadow-md">
         <PlaylistCollage
@@ -44,7 +47,7 @@ export function PlaylistCard({ playlist, onClick, onPlay }: PlaylistCardProps) {
               e.stopPropagation();
               onPlay();
             }}
-            className="absolute bottom-2.5 right-2.5 w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-black shadow-xl shadow-emerald-500/20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
+            className="absolute bottom-2.5 right-2.5 w-10 h-10 bg-[var(--theme-accent)] rounded-full flex items-center justify-center text-[var(--theme-accent-contrast)] shadow-xl shadow-[0_18px_45px_-20px_rgba(var(--theme-accent-rgb),0.5)] opacity-100 transition-transform duration-300 hover:scale-110 active:scale-95 cursor-pointer"
             title="Play Playlist"
           >
             <Play className="w-4 h-4 fill-black ml-0.5" />

@@ -1,72 +1,67 @@
 "use client";
 
 /**
- * Faded night-city backdrop for the phone Home header.
+ * Faded city backdrop for the phone Home sky strip.
  * Pure gradients + simple SVG shapes (no screenshot assets): themed cloudy
- * sky, glowing moon at upper right, dark skyline with a tree on the right
- * edge. The only animation is the moon glow's opacity pulse (MotionIcons.css).
+ * sky, stars, and a dark skyline with a tree on the right edge. Every size
+ * below is a percentage of the strip, so a shorter strip scales the whole
+ * scene instead of cropping it. The single time-based sun/moon lives in
+ * HeroSky (MobileHome), so this backdrop draws no moon of its own. While the
+ * sun is up (isDay) the stars are dropped, so daytime never shows both.
  */
 
 import React from "react";
-import { MoonGlow } from "@/components/ui/MotionIcons";
 
 const STARS: { left: string; top: string; opacity: number }[] = [
-  { left: "12%", top: "18%", opacity: 0.7 },
-  { left: "26%", top: "9%", opacity: 0.5 },
-  { left: "38%", top: "26%", opacity: 0.6 },
-  { left: "52%", top: "12%", opacity: 0.45 },
-  { left: "63%", top: "30%", opacity: 0.5 },
-  { left: "8%", top: "42%", opacity: 0.4 },
-  { left: "47%", top: "40%", opacity: 0.35 },
-  { left: "86%", top: "52%", opacity: 0.4 },
+  { left: "12%", top: "16%", opacity: 0.7 },
+  { left: "26%", top: "8%", opacity: 0.5 },
+  { left: "38%", top: "24%", opacity: 0.6 },
+  { left: "52%", top: "10%", opacity: 0.45 },
+  { left: "63%", top: "28%", opacity: 0.5 },
+  { left: "8%", top: "40%", opacity: 0.4 },
+  { left: "47%", top: "38%", opacity: 0.35 },
+  { left: "86%", top: "50%", opacity: 0.4 },
 ];
 
-export function NightSky() {
+export function NightSky({ isDay = false }: { isDay?: boolean }) {
   return (
-    <div
-      className="pointer-events-none absolute inset-x-0 top-0 h-[220px] overflow-hidden"
-      aria-hidden="true"
-    >
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       {/* Night sky base */}
+      <div className="absolute inset-0" style={{ background: "var(--theme-night-sky)" }} />
+
+      {/* Themed glow clouds — percentages keep them in proportion. */}
       <div
-        className="absolute inset-0"
-        style={{ background: "var(--theme-night-sky)" }}
-      />
-      {/* Themed clouds */}
-      <div
-        className="absolute -left-10 top-6 h-24 w-56 rounded-full blur-2xl"
-        style={{ background: "rgba(var(--theme-icon-rgb), 0.25)" }}
+        className="absolute -left-[12%] top-[4%] h-[30%] w-[70%] rounded-full blur-2xl"
+        style={{ background: "rgba(var(--theme-icon-rgb), 0.28)" }}
       />
       <div
-        className="absolute left-1/3 top-2 h-20 w-64 rounded-full blur-2xl"
-        style={{ background: "rgba(var(--theme-glow-rgb), 0.2)" }}
+        className="absolute left-[28%] top-[0%] h-[24%] w-[72%] rounded-full blur-2xl"
+        style={{ background: "rgba(var(--theme-glow-rgb), 0.24)" }}
       />
       <div
-        className="absolute -right-12 top-24 h-24 w-60 rounded-full blur-2xl"
-        style={{ background: "rgba(var(--theme-secondary-rgb), 0.25)" }}
-      />
-      <div
-        className="absolute left-8 top-32 h-16 w-48 rounded-full blur-2xl"
+        className="absolute -right-[16%] top-[26%] h-[32%] w-[74%] rounded-full blur-2xl"
         style={{ background: "rgba(var(--theme-secondary-rgb), 0.3)" }}
       />
+      <div
+        className="absolute left-[6%] top-[44%] h-[22%] w-[62%] rounded-full blur-2xl"
+        style={{ background: "rgba(var(--theme-secondary-rgb), 0.26)" }}
+      />
 
-      {/* Stars */}
-      {STARS.map((star, i) => (
-        <span
-          key={i}
-          className="absolute h-0.5 w-0.5 rounded-full bg-white"
-          style={{ left: star.left, top: star.top, opacity: star.opacity }}
-        />
-      ))}
-
-      {/* Glowing moon, upper right */}
-      <MoonGlow className="absolute right-6 top-12 h-16 w-16" />
+      {/* Stars — only on the night half of the day. */}
+      {!isDay &&
+        STARS.map((star, i) => (
+          <span
+            key={i}
+            className="absolute h-0.5 w-0.5 rounded-full bg-white"
+            style={{ left: star.left, top: star.top, opacity: star.opacity }}
+          />
+        ))}
 
       {/* Far skyline */}
       <svg
         viewBox="0 0 390 110"
         preserveAspectRatio="none"
-        className="absolute inset-x-0 bottom-5 h-20 w-full"
+        className="absolute inset-x-0 bottom-0 h-[32%] w-full"
       >
         <g style={{ fill: "var(--theme-skyline-far)" }} opacity="0.85">
           <rect x="0" y="46" width="26" height="64" />
@@ -91,7 +86,7 @@ export function NightSky() {
       <svg
         viewBox="0 0 390 90"
         preserveAspectRatio="none"
-        className="absolute inset-x-0 bottom-0 h-16 w-full"
+        className="absolute inset-x-0 bottom-0 h-[24%] w-full"
       >
         <g style={{ fill: "var(--theme-skyline-near)" }}>
           <rect x="0" y="38" width="22" height="52" />
@@ -118,9 +113,9 @@ export function NightSky() {
         </g>
       </svg>
 
-      {/* Fade the whole scene into the themed page below */}
+      {/* Fade the scene into the themed page below */}
       <div
-        className="absolute inset-x-0 bottom-0 h-12"
+        className="absolute inset-x-0 bottom-0 h-[20%]"
         style={{ background: "linear-gradient(180deg, transparent 0%, var(--theme-night-fade) 92%)" }}
       />
     </div>

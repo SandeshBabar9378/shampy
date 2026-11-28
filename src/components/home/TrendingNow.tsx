@@ -14,10 +14,12 @@ import { TrendingUp } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import type { Track } from "@/lib/types";
 import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
+import { useDataMode } from "@/hooks/useDataMode";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 import { LAVENDER, PlaceholderRow, SectionHeader } from "./homeUi";
 import { rankTopTracks, trackKey } from "./ranking";
 
-const CARD_CLASS = "w-[37%] min-w-[128px]";
+const CARD_CLASS = MOBILE_HOME_TOKENS.horizontalCard;
 
 interface TrendingNowProps {
   history: Track[];
@@ -27,6 +29,8 @@ interface TrendingNowProps {
 
 export function TrendingNow({ history, recents, mostPlayed }: TrendingNowProps) {
   const { playTrack } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
 
   const shown = useMemo(() => {
     const ranked = rankTopTracks(history, recents, mostPlayed, 12);
@@ -36,35 +40,34 @@ export function TrendingNow({ history, recents, mostPlayed }: TrendingNowProps) 
   }, [history, recents, mostPlayed]);
 
   return (
-    <div className="relative mt-6">
+    <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
       <SectionHeader icon={TrendingUp} title="Trending Now" />
-      <p className="mb-2 px-4 text-[11px]" style={{ color: LAVENDER }}>
-        Your top played
-      </p>
       {shown.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
           {shown.map((track) => (
             <button
               key={trackKey(track)}
               type="button"
-              onClick={() => void playTrack(track, shown)}
-              className={`${CARD_CLASS} shrink-0 cursor-pointer text-left shubhu-press`}
+              onClick={() => void playTrack(track, shown, playOptions)}
+              className={`${CARD_CLASS} cursor-pointer text-left shubhu-press`}
               title={track.title}
             >
-              <span className="shubhu-art-placeholder block aspect-square w-full overflow-hidden rounded-xl border">
+              <span className={`shubhu-art-placeholder block ${MOBILE_HOME_TOKENS.imageContainer}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={getStableTrackArtworkUrl(track, "max")}
+                  src={getStableTrackArtworkUrl(track, "hq", mode)}
                   alt={track.title}
                   referrerPolicy="no-referrer"
+                  loading="eager"
+                  decoding="async"
                   onError={(e) => applyStableArtworkFallback(e.currentTarget)}
-                  className="h-full w-full object-cover"
+                  className={MOBILE_HOME_TOKENS.image}
                 />
               </span>
-              <span className="mt-1.5 block truncate text-[12px] font-semibold text-white">
+              <span className={`mt-1.5 ${MOBILE_HOME_TOKENS.titleText}`}>
                 {track.title}
               </span>
-              <span className="block truncate text-[11px]" style={{ color: LAVENDER }}>
+              <span className={MOBILE_HOME_TOKENS.subtitleText} style={{ color: LAVENDER }}>
                 {track.artist}
               </span>
             </button>

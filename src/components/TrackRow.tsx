@@ -8,6 +8,7 @@ import { Track } from "@/lib/types";
 import { usePlayer } from "@/context/PlayerContext";
 import { getTrackArtworkFallbackUrl, getTrackArtworkUrl } from "@/lib/artwork";
 import { useDownload } from "@/hooks/useDownload";
+import { useDataMode } from "@/hooks/useDataMode";
 import { DOWNLOADS_ENABLED } from "@/lib/features";
 
 interface TrackRowProps {
@@ -19,6 +20,10 @@ interface TrackRowProps {
   playlistId?: string;
   /** Let the song/artist/album text wrap instead of truncating (used by search results). */
   wrapText?: boolean;
+  /** Artwork loads eagerly by default: nested app scrollers never fire lazy loading. */
+  eagerArtwork?: boolean;
+  /** Small variant marker so repeated row shelves do not look machine-copied. */
+  variant?: number;
 }
 
 function formatDuration(seconds: number): string {
@@ -28,9 +33,11 @@ function formatDuration(seconds: number): string {
   return `${m}:${s < 10 ? "0" : ""}${s}`;
 }
 
-export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId, wrapText = false }: TrackRowProps) {
+export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge, playlistId, wrapText = false, eagerArtwork = true, variant = 0 }: TrackRowProps) {
   const router = useRouter();
   const dl = useDownload(track);
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const { currentTrack, isPlaying, playTrack, togglePlay, likedSongIds, toggleLike, playlists, addToPlaylist, queue: appQueue, setAppQueue, playNext, removeFromPlaylist } = usePlayer();
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
   const [showMobilePlaylistMenu, setShowMobilePlaylistMenu] = useState(false);
@@ -65,7 +72,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
     } else if (isCurrent) {
       togglePlay();
     } else {
-      playTrack(track, queue);
+      playTrack(track, queue, playOptions);
     }
   };
 
@@ -108,7 +115,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
       <div
         onClick={handlePlay}
         style={{ animationDelay: `${Math.min(index, 14) * 26}ms` }}
-        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl transition-all select-none text-sm cursor-pointer shubhu-row-in ${
+        className={`card-variant-${variant % 4} group relative flex items-center justify-between px-3 py-2.5 rounded-xl transition-all select-none text-sm cursor-pointer shubhu-row-in ${
           isCurrent
             ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
             : "hover:bg-white/5 border border-transparent"
@@ -139,12 +146,14 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
           </button>
 
           <img
-            src={getTrackArtworkUrl(track, "max")}
+            src={getTrackArtworkUrl(track, "hq", mode)}
             alt={track.title}
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
+            loading={eagerArtwork ? "eager" : "lazy"}
+            decoding="async"
             onError={(e) => {
-              e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+              e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
             }}
             className="w-10 h-10 rounded object-cover bg-neutral-800 shrink-0"
           />
@@ -203,7 +212,7 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
           </button>
 
           {/* Desktop hover actions: Add to Playlist */}
-          <div className="relative hidden md:block opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto">
+          <div className="shubhu-row-action-hidden relative hidden md:block opacity-0 pointer-events-none md:group-hover:opacity-100 md:pointer-events-auto">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -387,12 +396,14 @@ export function TrackRow({ track, index, queue, onPlayOverride, showSimilarBadge
           >
             <div className="flex items-center gap-3 pb-2 border-b border-neutral-700">
               <img
-                src={getTrackArtworkUrl(track, "max")}
+                src={getTrackArtworkUrl(track, "hq", mode)}
                 alt={track.title}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
-                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
                 }}
                 className="w-12 h-12 rounded object-cover"
               />

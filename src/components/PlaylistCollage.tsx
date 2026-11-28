@@ -3,7 +3,7 @@
 import React from "react";
 import { Music } from "lucide-react";
 import { Track } from "@/lib/types";
-import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import { getDefaultArtworkFallbackUrl, normalizeArtworkUrl } from "@/lib/artwork";
 
 interface PlaylistCollageProps {
   tracks?: Track[];
@@ -18,6 +18,7 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
   const images = tracks
     .map((t) => t.coverUrl)
     .filter((url): url is string => Boolean(url && url.trim().length > 0))
+    .map((url) => normalizeArtworkUrl(url))
     .slice(0, 4);
 
   // 0 songs: fallbackCoverUrl or music note placeholder
@@ -29,6 +30,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
           alt="Playlist cover"
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = DEFAULT_FALLBACK;
           }}
@@ -51,6 +54,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
         alt="Playlist cover"
         crossOrigin="anonymous"
         referrerPolicy="no-referrer"
+        loading="eager"
+        decoding="async"
         onError={(e) => {
           e.currentTarget.src = DEFAULT_FALLBACK;
         }}
@@ -70,6 +75,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="async"
             onError={(e) => {
               e.currentTarget.src = DEFAULT_FALLBACK;
             }}
@@ -92,6 +99,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
               alt=""
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
+              loading="eager"
+              decoding="async"
               onError={(e) => {
                 e.currentTarget.src = DEFAULT_FALLBACK;
               }}
@@ -105,6 +114,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
             alt=""
             crossOrigin="anonymous"
             referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="async"
             onError={(e) => {
               e.currentTarget.src = DEFAULT_FALLBACK;
             }}
@@ -125,6 +136,8 @@ export function PlaylistCollage({ tracks = [], fallbackCoverUrl, className = "w-
           alt=""
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = DEFAULT_FALLBACK;
           }}

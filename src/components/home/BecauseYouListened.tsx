@@ -14,9 +14,11 @@ import { Headphones } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import type { Track } from "@/lib/types";
 import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
+import { getActiveDataMode, useDataMode } from "@/hooks/useDataMode";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 import { LAVENDER, PlaceholderRow, SectionHeader } from "./homeUi";
 
-const CARD_CLASS = "w-[37%] min-w-[128px]";
+const CARD_CLASS = MOBILE_HOME_TOKENS.horizontalCard;
 
 interface Suggestion {
   track: Track;
@@ -38,6 +40,8 @@ function trackKey(track: Track): string {
 
 export function BecauseYouListened({ history }: { history: Track[] }) {
   const { playTrack } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   const seeds = useMemo(() => {
@@ -59,13 +63,16 @@ export function BecauseYouListened({ history }: { history: Track[] }) {
     let cancelled = false;
     const controller = new AbortController();
     const historyKeys = new Set(history.map(trackKey));
+    const activeMode = getActiveDataMode();
+    const perSeedLimit = activeMode === "low" ? 4 : 8;
+    const totalLimit = activeMode === "low" ? 4 : 8;
 
     Promise.all(
       seeds.map(async (seed) => {
         const videoId =
           seed.youtubeId || (/^[A-Za-z0-9_-]{11}$/.test(seed.id) ? seed.id : "");
         try {
-          const res = await fetch(`/api/next?videoId=${encodeURIComponent(videoId)}`, {
+          const res = await fetch(`/api/next?videoId=${encodeURIComponent(videoId)}&mode=${activeMode}`, {
             signal: controller.signal,
           });
           if (!res.ok) return [] as Suggestion[];
@@ -73,7 +80,7 @@ export function BecauseYouListened({ history }: { history: Track[] }) {
           if (!Array.isArray(data)) return [] as Suggestion[];
           return data
             .filter((item) => Boolean(item?.videoId && item.title))
-            .slice(0, 8)
+            .slice(0, perSeedLimit)
             .map((item): Suggestion => ({
               track: {
                 id: item.videoId as string,
@@ -102,7 +109,7 @@ export function BecauseYouListened({ history }: { history: Track[] }) {
             seen.add(key);
             return true;
           })
-          .slice(0, 8);
+          .slice(0, totalLimit);
         setSuggestions(merged);
       })
       .catch(() => {
@@ -116,41 +123,40 @@ export function BecauseYouListened({ history }: { history: Track[] }) {
     // `seedKey` captures the memoised seeds; history is read only for the
     // exclusion set, which is stable for a given seed list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seedKey]);
+  }, [seedKey, mode]);
 
   const displayed = seedKey ? suggestions : [];
 
   return (
-    <div className="relative mt-6">
+    <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
       <SectionHeader icon={Headphones} title="Because You Listened To" />
       {displayed.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
           {displayed.map(({ track, reason }) => (
             <button
               key={trackKey(track)}
               type="button"
-              onClick={() => void playTrack(track, displayed.map((item) => item.track))}
-              className={`${CARD_CLASS} shrink-0 cursor-pointer text-left shubhu-press`}
+              onClick={() => void playTrack(track, displayed.map((item) => item.track), playOptions)}
+              className={`${CARD_CLASS} cursor-pointer text-left shubhu-press`}
               title={track.title}
             >
-              <span className="shubhu-art-placeholder block aspect-square w-full overflow-hidden rounded-xl border">
+              <span className={`shubhu-art-placeholder block ${MOBILE_HOME_TOKENS.imageContainer}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={getStableTrackArtworkUrl(track, "max")}
+                  src={getStableTrackArtworkUrl(track, "hq", mode)}
                   alt={track.title}
                   referrerPolicy="no-referrer"
+                  loading="eager"
+                  decoding="async"
                   onError={(e) => applyStableArtworkFallback(e.currentTarget)}
-                  className="h-full w-full object-cover"
+                  className={MOBILE_HOME_TOKENS.image}
                 />
               </span>
-              <span className="mt-1.5 block truncate text-[12px] font-semibold text-white">
+              <span className={`mt-1.5 ${MOBILE_HOME_TOKENS.titleText}`}>
                 {track.title}
               </span>
-              <span className="block truncate text-[11px]" style={{ color: LAVENDER }}>
+              <span className={MOBILE_HOME_TOKENS.subtitleText} style={{ color: LAVENDER }}>
                 {track.artist}
-              </span>
-              <span className="mt-0.5 block text-[10px] leading-tight text-white/55">
-                Because you listened to {reason}
               </span>
             </button>
           ))}

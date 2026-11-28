@@ -37,23 +37,21 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
       </div>
 
       {/* Desktop brand lives in the header only while the sidebar is collapsed.
-          While expanded it leaves the flex flow entirely, so the search field
-          starts at the header's content edge; opacity is the only animation. */}
-      <div
-        aria-hidden={!sidebarCollapsed}
-        className={`hidden sm:flex shrink-0 items-center transition-opacity duration-200 motion-reduce:transition-none ${
-          sidebarCollapsed ? "opacity-100" : "pointer-events-none absolute left-6 opacity-0"
-        }`}
-      >
-        <ShubhuBrand />
-      </div>
+          It leaves the flow entirely while expanded: no faded-out copy is left
+          behind for the phone scanner to mistake for a blank image frame. */}
+      {sidebarCollapsed && (
+        <div aria-hidden="true" className="hidden sm:flex shrink-0 items-center">
+          <ShubhuBrand />
+        </div>
+      )}
 
       {/* Desktop Search bar — width is capped in CSS so it can shrink before
           it ever reaches the profile controls on narrow laptops. */}
       <form onSubmit={handleSearchSubmit} className="hidden sm:flex flex-1 min-w-0 mx-3 lg:mx-6">
-        <div className="shubhu-desktop-search relative min-w-0">
+        <div className="shubhu-desktop-search relative min-w-0 flex-1">
           <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
+            id="global-search"
             type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -64,7 +62,8 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
               }
             }}
             placeholder="Search songs, artists, albums…"
-            className="w-full bg-neutral-900/70 text-white placeholder-neutral-400 pl-10 pr-4 py-2 rounded-xl text-sm border border-white/5 focus:border-emerald-500/50 focus:outline-none focus:bg-neutral-900 transition-all shadow-inner"
+            aria-label="Search songs, artists, albums"
+            className="w-full rounded-full border border-white/[0.07] bg-white/[0.035] py-2.5 pl-10 pr-4 text-sm text-white placeholder-neutral-400 shadow-inner transition-all hover:border-white/[0.12] focus:border-emerald-500/50 focus:bg-white/[0.06]"
             autoComplete="off"
             enterKeyHint="search"
             name="global-search"
@@ -87,7 +86,7 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
                 }
               }}
               placeholder="Search songs, artists, albums…"
-              className="shubhu-mobile-search-input w-full py-2 pl-3.5 pr-3 text-sm rounded-full focus:outline-none"
+              className="shubhu-mobile-search-input w-full py-2 pl-3.5 pr-3 text-sm rounded-full"
               autoFocus
               autoComplete="off"
               enterKeyHint="search"
@@ -98,11 +97,11 @@ export function Navbar({ searchQuery, onSearchChange, onSearchSubmit, showSearch
       )}
 
       {/* Right controls */}
-      <div className="flex items-center gap-2.5 ml-1 sm:ml-4 shrink-0">
+      <div className="flex items-center gap-2.5 ml-1 sm:ml-4 sm:mr-2 shrink-0">
         {/* Desktop: avatar + username button */}
         <button
           onClick={onOpenProfile}
-          className="hidden sm:flex items-center gap-2.5 bg-transparent hover:bg-neutral-900/40 border border-transparent hover:border-white/5 pl-1 pr-2 py-1.5 rounded-full transition-colors group cursor-pointer"
+          className="group hidden cursor-pointer items-center gap-2.5 rounded-full border border-white/[0.07] bg-white/[0.03] py-1 pl-1 pr-3 transition-colors hover:border-white/[0.14] hover:bg-white/[0.06] sm:flex"
         >
           <img
             src={user?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=user"}

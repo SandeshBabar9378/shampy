@@ -20,37 +20,21 @@ const EQ_BAR_HEIGHTS = [9, 16, 23, 13, 7];
 interface EqualizerLogoProps {
   /** Bars dance only while the player is actually playing. */
   playing: boolean;
+  /** Low data mode keeps the equalizer static while nothing is playing. */
+  animated?: boolean;
   className?: string;
 }
 
-export function EqualizerLogo({ playing, className = "" }: EqualizerLogoProps) {
+export function EqualizerLogo({ playing, animated = true, className = "" }: EqualizerLogoProps) {
   return (
     <span
       className={`shubhu-eq ${className}`}
-      data-playing={playing ? "true" : "false"}
+      data-playing={playing && animated ? "true" : "false"}
       aria-hidden="true"
     >
       {EQ_BAR_HEIGHTS.map((height, i) => (
         <span key={i} className="shubhu-eq-bar" style={{ height }} />
       ))}
-    </span>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Moon with a slow opacity-pulsing glow                               */
-/* ------------------------------------------------------------------ */
-
-interface MoonGlowProps {
-  /** Size/position classes for the core, e.g. "w-16 h-16". */
-  className?: string;
-}
-
-export function MoonGlow({ className = "w-16 h-16" }: MoonGlowProps) {
-  return (
-    <span className={`shubhu-moon block ${className}`} aria-hidden="true">
-      <span className="shubhu-moon-glow" />
-      <span className="shubhu-moon-core" />
     </span>
   );
 }

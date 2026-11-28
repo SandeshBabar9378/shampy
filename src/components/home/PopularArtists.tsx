@@ -13,10 +13,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mic2 } from "lucide-react";
 import type { Track } from "@/lib/types";
+import { getDefaultArtworkFallbackUrl, normalizeArtworkUrl } from "@/lib/artwork";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 import { PlaceholderRow, SectionHeader } from "./homeUi";
 import { rankTopTracks } from "./ranking";
 
-const CARD_CLASS = "w-[22%] min-w-[76px]";
+const CARD_CLASS = MOBILE_HOME_TOKENS.artistCard;
 
 interface PopularArtist {
   name: string;
@@ -119,20 +121,25 @@ export function PopularArtists({ history, recents, mostPlayed }: {
   const displayed = artistKey ? artists : [];
 
   return (
-    <div className="relative mt-6">
+    <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
       <SectionHeader icon={Mic2} title="Popular Artists" />
       {displayed.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
           {displayed.map((artist) => {
             const content = (
               <>
-                <span className="shubhu-art-placeholder block aspect-square w-full overflow-hidden rounded-full border">
+                <span className={`shubhu-art-placeholder block ${MOBILE_HOME_TOKENS.artistImageContainer}`}>
                   {artist.thumbnail ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={artist.thumbnail}
+                      src={normalizeArtworkUrl(artist.thumbnail)}
                       alt={artist.name}
                       referrerPolicy="no-referrer"
+                      loading="eager"
+                      decoding="async"
+                      onError={(e) => {
+                        e.currentTarget.src = getDefaultArtworkFallbackUrl();
+                      }}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -141,8 +148,11 @@ export function PopularArtists({ history, recents, mostPlayed }: {
                     </span>
                   )}
                 </span>
-                <span className="mt-1.5 block truncate text-center text-[11px] font-semibold text-white">
+                <span className="mt-2 block truncate text-center text-[12px] font-semibold text-white">
                   {artist.name}
+                </span>
+                <span className="block truncate text-center text-[11px] text-white/50">
+                  Artist
                 </span>
               </>
             );
@@ -151,13 +161,13 @@ export function PopularArtists({ history, recents, mostPlayed }: {
                 key={artist.name}
                 type="button"
                 onClick={() => router.push(`/artist/${encodeURIComponent(artist.browseId as string)}`)}
-                className={`${CARD_CLASS} shrink-0 cursor-pointer shubhu-press`}
+                className={`${CARD_CLASS} cursor-pointer shubhu-press`}
                 title={artist.name}
               >
                 {content}
               </button>
             ) : (
-              <div key={artist.name} className={`${CARD_CLASS} shrink-0`} title={artist.name}>
+              <div key={artist.name} className={CARD_CLASS} title={artist.name}>
                 {content}
               </div>
             );

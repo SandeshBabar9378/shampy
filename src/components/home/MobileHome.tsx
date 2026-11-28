@@ -11,13 +11,15 @@
  * auto-updates after every play/like.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Download,
   Heart,
   History,
   Play,
   Search,
+  Settings,
   Shuffle,
   Star,
   Zap,
@@ -26,8 +28,9 @@ import { useAppShell } from "@/context/AppShellContext";
 import { usePlayer } from "@/context/PlayerContext";
 import type { Track } from "@/lib/types";
 import { CURATED_TRACKS } from "@/lib/musicProvider";
-import { applyStableArtworkFallback, getStableTrackArtworkUrl } from "@/lib/artwork";
-import { EqualizerLogo, GreetingSwoosh } from "@/components/ui/MotionIcons";
+import { applyStableArtworkFallback, getStableTrackArtworkUrl, getTrackArtworkUrl } from "@/lib/artwork";
+import { getActiveDataMode, useDataMode } from "@/hooks/useDataMode";
+import { EqualizerLogo } from "@/components/ui/MotionIcons";
 import { NightSky } from "@/components/home/NightSky";
 import { RecentlyPlayed } from "@/components/home/RecentlyPlayed";
 import { OnRepeat } from "@/components/home/OnRepeat";
@@ -36,7 +39,8 @@ import { NewReleases } from "@/components/home/NewReleases";
 import { BecauseYouListened } from "@/components/home/BecauseYouListened";
 import { TrendingNow } from "@/components/home/TrendingNow";
 import { PopularArtists } from "@/components/home/PopularArtists";
-import { LAVENDER } from "@/components/home/homeUi";
+import { LAVENDER, SectionHeader } from "@/components/home/homeUi";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 
 type Daypart = "Morning" | "Afternoon" | "Evening" | "Night";
 
@@ -77,6 +81,153 @@ function dedupeTracks(tracks: Track[]): Track[] {
   return Array.from(new Map(tracks.filter((t) => t?.id).map((t) => [t.id, t])).values());
 }
 
+/* ------------------------------------------------------------------ */
+/* Hero sky: drifting clouds + one time-placed sun / moon.             */
+/* The celestial body rides a fixed arc with a transform only; the      */
+/* clouds drift with transform + opacity and park under reduced motion. */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Sky strip height: ~28% of the phone viewport. The backdrop, the stars, the
+ * drifting clouds and the sun/moon arc all live inside this one strip, and
+ * the rest of the page starts right below it.
+ */
+const HERO_SKY_BAND_HEIGHT = "15svh";
+/** Keeps the body clear of the screen edges at rise and set (no half-cropping). */
+const HERO_BODY_SIDE_PAD = 10;
+/** Pre-measurement guess for the first paint; the effect corrects it. */
+const HERO_BODY_BAND_HEIGHT = 80;
+/** Body centre sits this far from the band's top on the high point. */
+const HERO_BODY_TOP_PAD = 8;
+/** Body diameter in px (radius = 15). */
+const HERO_BODY_DIAMETER = 30;
+/** Arc tilt in degrees at rise (and by symmetry at set). */
+const HERO_BODY_LIFT = 8;
+/** 12 evenly spaced sun rays; the SVG spins them slowly via CSS. */
+const SUN_RAY_ANGLES = Array.from({ length: 12 }, (_, i) => i * 30);
+
+/** Rays sit just inside the sun's edge and reach ~1.4x its radius. */
+function SunRays() {
+  return (
+    <svg className="shubhu-hero-body-rays" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      {SUN_RAY_ANGLES.map((angle) => {
+        const rad = (angle * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        return (
+          <line
+            key={angle}
+            x1={50 + cos * 26}
+            y1={50 + sin * 26}
+            x2={50 + cos * 41}
+            y2={50 + sin * 41}
+            stroke="currentColor"
+            strokeWidth={4.5}
+            strokeLinecap="round"
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+/** One body frame of the arc: `translate` + `rotate` along a fixed curve. */
+function heroSkyArcTransform(t: number, width: number, height: number): string {
+  const span = Math.max(0, height - HERO_BODY_TOP_PAD - HERO_BODY_DIAMETER);
+  const travel = Math.max(0, width - HERO_BODY_DIAMETER - HERO_BODY_SIDE_PAD * 2);
+  const x = HERO_BODY_SIDE_PAD + t * travel;
+  const y = HERO_BODY_TOP_PAD + span * (1 - Math.sin(Math.PI * t));
+  const rotate = Math.cos(Math.PI * t) * HERO_BODY_LIFT;
+  return `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rotate.toFixed(2)}deg)`;
+}
+
+/** Sky fraction along the arc: 0 at rise (left, low), 0.5 overhead, 1 at set (right, low).
+   Sun rises ~06:00 and sets ~18:00; moon rises ~18:00 and sets ~06:00 (next day).
+   Elapsed minutes wrap past midnight so the arc is continuous across the 06:00/18:00 boundary. */
+function heroSkyT(minutes: number, isDay: boolean): number {
+  const riseMinutes = isDay ? 6 * 60 : 18 * 60;
+  let elapsed = minutes - riseMinutes;
+  if (elapsed < 0) elapsed += 24 * 60; // carried over from the previous calendar day
+  let t = elapsed / 720; // 12-hour arc
+  if (t < 0) t = 0;
+  if (t > 1) t = 1;
+  return t;
+}
+
+/**
+ * Absolute sky layer for the phone hero: five soft clouds that drift across
+ * the strip on a loop, plus the single sun/moon sitting on the time-based
+ * arc. Fills the strip above the skyline (bottom-[24%]) and clips to it, so
+ * clouds only ever move inside the sun/moon area.
+ */
+function HeroSky({ isDay }: { isDay: boolean }) {
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const [body, setBody] = useState<{ kind: "sun" | "moon"; transform: string }>({
+    kind: isDay ? "sun" : "moon",
+    transform: heroSkyArcTransform(0, HERO_BODY_BAND_HEIGHT, HERO_BODY_BAND_HEIGHT),
+  });
+
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+
+    const placeBody = () => {
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      const isDay = now.getHours() >= 6 && now.getHours() < 18;
+      const t = heroSkyT(minutes, isDay);
+      const { width, height } = layer.getBoundingClientRect();
+      const next = {
+        kind: (isDay ? "sun" : "moon") as "sun" | "moon",
+        transform: heroSkyArcTransform(t, width, height),
+      };
+      // State bail-out keeps the minute interval from re-rendering needlessly.
+      setBody((prev) => (prev.kind === next.kind && prev.transform === next.transform ? prev : next));
+    };
+
+    placeBody();
+
+    // Reduced motion: body stays static at its current spot, no clock drift.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    const timer = window.setInterval(placeBody, 60 * 1000);
+    // Rotation / viewport resize changes the band size, so re-measure.
+    window.addEventListener("resize", placeBody);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("resize", placeBody);
+    };
+  }, []);
+
+  const celestialClass = body.kind === "sun" ? "shubhu-hero-body--sun" : "shubhu-hero-body--moon";
+
+  return (
+    <div
+      ref={layerRef}
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 top-0 bottom-[20%] overflow-hidden"
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span key={n} className={`shubhu-hero-cloud shubhu-hero-cloud--${n}`}>
+          <svg viewBox="0 0 120 60" aria-hidden="true" focusable="false">
+            <g fill="currentColor">
+              <ellipse cx="34" cy="40" rx="30" ry="16" />
+              <ellipse cx="62" cy="29" rx="26" ry="19" />
+              <ellipse cx="92" cy="41" rx="24" ry="15" />
+            </g>
+          </svg>
+        </span>
+      ))}
+      <span className={`shubhu-hero-body ${celestialClass}`} style={{ transform: body.transform }}>
+        {body.kind === "sun" ? <SunRays /> : null}
+        <span className="shubhu-hero-body-core" />
+        <span className="shubhu-hero-body-halo" />
+      </span>
+    </div>
+  );
+}
+
 function keywordScore(track: Track, keywords: string[]): number {
   const haystack = `${track.genre ?? ""} ${track.title} ${track.artist} ${track.album}`.toLowerCase();
   return keywords.reduce((score, keyword) => (haystack.includes(keyword) ? score + 1 : score), 0);
@@ -114,8 +265,11 @@ function buildMixTracks(
 }
 
 export function MobileHome() {
-  const { setCurrentView, openProfile } = useAppShell();
+  const router = useRouter();
+  const { setCurrentView } = useAppShell();
   const { user, isPlaying, playTrack, playShuffledQueue } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
 
   const [recents, setRecents] = useState<Track[]>([]);
   const [liked, setLiked] = useState<Track[]>([]);
@@ -138,7 +292,12 @@ export function MobileHome() {
     };
     load();
     window.addEventListener("storage", load);
-    return () => window.removeEventListener("storage", load);
+    // Keep the daypart + sky in sync with the clock, not just first paint.
+    const timer = window.setInterval(() => setHour(new Date().getHours()), 60 * 1000);
+    return () => {
+      window.removeEventListener("storage", load);
+      window.clearInterval(timer);
+    };
   }, []);
 
   // Real play counts live in song_stats. The API only returns them for a
@@ -147,7 +306,13 @@ export function MobileHome() {
     const userId = user?.id;
     if (!userId) return;
     let cancelled = false;
-    const params = new URLSearchParams({ userId, section: "most", limit: "20" });
+    const activeMode = getActiveDataMode();
+    const params = new URLSearchParams({
+      userId,
+      section: "most",
+      limit: activeMode === "low" ? "10" : "20",
+      mode: activeMode,
+    });
     fetch(`/api/recommend?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: unknown) => {
@@ -169,17 +334,19 @@ export function MobileHome() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user?.id, mode]);
 
   // A signed-out account must never see a previous account's real stats.
   const effectiveMostPlayed = user?.id ? mostPlayed : [];
 
   const daypart = daypartForHour(hour);
+  // Sun is up 06:00–18:00, matching the arc HeroSky draws.
+  const isDay = hour >= 6 && hour < 18;
 
   const history = useMemo(() => dedupeTracks([...recents, ...liked]), [recents, liked]);
 
   const mixes = useMemo(() => {
-    const pool = history.length > 0 ? history : CURATED_TRACKS;
+    const pool = history.length >= 7 ? history : dedupeTracks([...history, ...CURATED_TRACKS]);
     const artistCounts = new Map<string, number>();
     const genreCounts = new Map<string, number>();
     history.forEach((track) => {
@@ -189,13 +356,17 @@ export function MobileHome() {
     return MIX_DEFS.map((def, index) => {
       const tracks = buildMixTracks(def, index, pool, artistCounts, genreCounts, daypart);
       const coverTrack = tracks.find((track) => track.coverUrl || track.youtubeId);
-      return {
-        ...def,
-        tracks,
-        coverUrl: coverTrack ? getStableTrackArtworkUrl(coverTrack, "max") : null,
-      };
+      let coverUrl: string | null = null;
+      if (coverTrack) {
+        const stable = getStableTrackArtworkUrl(coverTrack, "hq", mode);
+        // A bare hash from downloaded/offline metadata is not a fetchable URL.
+        // Rebuild the reliable YouTube thumbnail from the video id instead.
+        const fetchable = /^(https?:\/\/|\/)/.test(stable);
+        coverUrl = fetchable ? stable : getTrackArtworkUrl(coverTrack, "hq", mode);
+      }
+      return { ...def, tracks, coverUrl };
     });
-  }, [history, daypart]);
+  }, [history, daypart, mode]);
 
   const handleShuffle = () => {
     const pool = history.length > 0 ? history : CURATED_TRACKS;
@@ -210,19 +381,22 @@ export function MobileHome() {
   ];
 
   return (
-    <div className="relative -mx-4 -mt-4">
-      {/* Night-city backdrop behind the header + greeting */}
-      <NightSky />
+    <div className={`relative -mx-4 -mt-4 ${MOBILE_HOME_TOKENS.bottomPadding}`}>
+      {/* Sky strip: backdrop, stars, drifting clouds and the sun/moon arc. */}
+      <div className="relative overflow-hidden rounded-b-3xl" style={{ height: HERO_SKY_BAND_HEIGHT }}>
+        <NightSky isDay={isDay} />
+        <HeroSky isDay={isDay} />
+        {/* Smooth fade at bottom to blend into page */}
+        <div className="absolute inset-x-0 bottom-0 h-[30%] pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 0%, var(--background) 100%)" }} />
 
-      {/* Header */}
-      <div className="relative px-4 pt-4">
-        <div className="flex items-center justify-between">
-          <EqualizerLogo playing={isPlaying} />
-          <div className="flex items-center gap-3">
+        {/* Header rides on top of the sky, inside the strip. */}
+        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-4">
+          <EqualizerLogo playing={isPlaying} animated={mode !== "low" || isPlaying} />
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setCurrentView("search")}
-              className="flex h-9 w-9 items-center justify-center text-white cursor-pointer shubhu-press"
+              className="flex h-11 w-11 items-center justify-center text-white cursor-pointer shubhu-press"
               title="Search"
               aria-label="Search"
             >
@@ -230,34 +404,23 @@ export function MobileHome() {
             </button>
             <button
               type="button"
-              onClick={openProfile}
-              className="shubhu-card-surface h-8 w-8 overflow-hidden rounded-full cursor-pointer shubhu-press"
-              title="Profile"
-              aria-label="Profile"
+              onClick={() => router.push("/settings")}
+              className="flex h-11 w-11 items-center justify-center text-white cursor-pointer shubhu-press"
+              title="Settings"
+              aria-label="Settings"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={user?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=user"}
-                alt=""
-                className="h-full w-full object-cover"
-              />
+              <Settings className="h-5 w-5" />
             </button>
           </div>
         </div>
-
-        {/* Greeting */}
-        <h1 className="mt-10 text-[32px] font-extrabold leading-tight tracking-tight text-white">
-          Good {daypart}!
-        </h1>
-        <GreetingSwoosh className="mt-1" />
       </div>
 
-      {/* Speed Dial */}
-      <div className="relative mt-16 px-4">
+      {/* Speed Dial — the rest of the page starts right under the sky strip. */}
+      <div className="relative mt-5 px-4">
         <div className="shubhu-card-surface rounded-2xl p-4 backdrop-blur-sm">
           <div className="mb-4 flex items-center gap-2">
-            <Zap className="h-4 w-4 fill-current" style={{ color: LAVENDER }} />
-            <h2 className="text-base font-bold text-white">Speed Dial</h2>
+            <Zap className="h-4 w-4 fill-current" style={{ color: "var(--theme-accent-strong)" }} />
+            <h2 className="font-display text-[17px] font-semibold tracking-tight text-white">Speed dial</h2>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {speedDial.map(({ id, lines, icon: Icon, filled, onClick }) => (
@@ -287,41 +450,40 @@ export function MobileHome() {
       </div>
 
       {/* Made for You */}
-      <div className="relative mt-6">
-        <div className="mb-3 flex items-center gap-2 px-4">
-          <Star className="shubhu-icon-accent h-5 w-5 fill-current" />
-          <h2 className="text-lg font-bold text-white">Made for You</h2>
-        </div>
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
-          {mixes.map((mix) => (
+      <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
+        <SectionHeader icon={Star} title="Made for you" />
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
+          {mixes.map((mix, mixIndex) => (
             <button
               key={mix.id}
               type="button"
               onClick={() => {
-                if (mix.tracks.length > 0) void playTrack(mix.tracks[0], mix.tracks);
+                if (mix.tracks.length > 0) void playTrack(mix.tracks[0], mix.tracks, playOptions);
               }}
-              className="shubhu-card-surface w-[37%] min-w-[136px] shrink-0 cursor-pointer rounded-2xl p-2 text-left shubhu-press"
+              className={`shubhu-card-surface card-variant-${mixIndex % 4} ${MOBILE_HOME_TOKENS.horizontalCard} cursor-pointer rounded-2xl p-2 text-left shubhu-press`}
             >
-              <span className="relative block">
+              <span className="relative block overflow-hidden rounded-xl">
                 {mix.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={mix.coverUrl}
                     alt=""
                     referrerPolicy="no-referrer"
+                    loading="eager"
+                    decoding="async"
                     onError={(e) => applyStableArtworkFallback(e.currentTarget)}
-                    className="aspect-square w-full rounded-xl object-cover"
+                    className="aspect-square w-full rounded-xl object-cover scale-[1.18]"
                   />
                 ) : (
                   <span className="block aspect-square w-full rounded-xl" style={{ backgroundImage: mix.gradient }} />
                 )}
-                <span className="absolute -bottom-4 right-1 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--theme-accent)] shadow-lg">
-                  <Play className="ml-0.5 h-4 w-4 fill-[var(--theme-accent-contrast)] text-[var(--theme-accent-contrast)]" />
+                <span className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--theme-accent)] shadow-lg">
+                  <Play className="ml-0.5 h-3.5 w-3.5 fill-[var(--theme-accent-contrast)] text-[var(--theme-accent-contrast)]" />
                 </span>
               </span>
-              <span className="block px-1 pb-1 pt-5">
-                <span className="block truncate text-[13px] font-bold text-white">{mix.title}</span>
-                <span className="mt-0.5 block truncate text-[11px]" style={{ color: LAVENDER }}>
+              <span className="block px-1 pb-1 pt-2">
+                <span className="block truncate text-[12px] font-bold leading-snug text-white">{mix.title}</span>
+                <span className="mt-0.5 block truncate text-[11px] leading-snug" style={{ color: LAVENDER }}>
                   {mix.subtitle}
                 </span>
               </span>

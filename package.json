@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsc src/lib/carouselBase.ts src/lib/carouselMachine.ts --outDir .tmp-carousel --module commonjs --target es2017 --skipLibCheck && node --test tests/carousel.test.cjs tests/coverflowControls.test.cjs tests/mobileHomeLayout.test.cjs",
     "db:migrate": "node --env-file=.env scripts/migrate-postgres.mjs",
     "db:import-sqlite": "node --env-file=.env scripts/migrate-sqlite-to-postgres.mjs"
   },

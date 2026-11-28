@@ -17,7 +17,7 @@ interface AuthModalProps {
 const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 4);
 
 const inputClass =
-  "w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors";
+  "w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:border-emerald-500 transition-colors";
 
 export function AuthModal(props: AuthModalProps) {
   if (!props.isOpen || typeof document === "undefined") return null;

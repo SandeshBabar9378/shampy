@@ -33,6 +33,7 @@ import {
 } from "@/components/animations/MotionIcons";
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { useDominantColor } from "@/hooks/useDominantColor";
 import { parseLRC, LyricLine } from "@/lib/lyrics";
 import {
@@ -153,6 +154,8 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
     playTrack,
     isResolving,
   } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
 
   const [lyricsData, setLyricsData] = useState<LyricsData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -180,7 +183,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
 
   useEffect(() => {
     if (isOpen) {
-      setMounted(true);
+      queueMicrotask(() => setMounted(true));
       return;
     }
     if (!mounted) return;
@@ -192,18 +195,27 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
   const animFrameRef = useRef<number | null>(null);
   const resumeTimerRef = useRef<number | null>(null);
   const seekRef = useRef(seek);
+  // Low mode: lyrics/transcript are fetched when the view opens, not per track.
+  const fetchedOnOpenRef = useRef(false);
+  const transcriptForRef = useRef<LyricsData | null>(null);
 
-  const cover = getTrackArtworkUrl(currentTrack, "max");
-  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "max"));
+  const cover = getTrackArtworkUrl(currentTrack, "hq", mode);
+  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "hq", mode));
   const isLiked = currentTrack ? likedSongIds.has(currentTrack.id) : false;
   const effectiveTime = isSeeking ? seekVal : currentTime;
   const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (effectiveTime / duration) * 100)) : 0;
   const volumeVal = isMuted ? 0 : volume;
   const volumePercent = Math.min(100, Math.max(0, volumeVal * 100));
 
+  useEffect(() => {
+    if (!isOpen) fetchedOnOpenRef.current = false;
+  }, [isOpen]);
+
   // Fetch lyrics (same endpoint/query as the existing full-screen lyrics view).
   useEffect(() => {
     if (!currentTrack || !isOpen) return;
+    if (mode === "low" && fetchedOnOpenRef.current) return;
+    fetchedOnOpenRef.current = true;
 
     let cancelled = false;
     setLoading(true);
@@ -264,14 +276,16 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
     return () => {
       cancelled = true;
     };
-  }, [currentTrack?.id, isOpen]);
+  }, [currentTrack?.id, isOpen, mode]);
 
   // Existing Roman transcript logic (same cache version and validation).
   useEffect(() => {
     if (!lyricsData?.lines?.length || !currentTrack?.id) {
-      setRomanTranscripts([]);
+      queueMicrotask(() => setRomanTranscripts([]));
       return;
     }
+    if (mode === "low" && transcriptForRef.current === lyricsData) return;
+    transcriptForRef.current = lyricsData;
 
     const lines = lyricsData.lines.map((line) => line.text);
     const cacheKey = `lyrics-roman-v2_${currentTrack.id}`;
@@ -282,8 +296,10 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
         if (cached) {
           const parsed: unknown = JSON.parse(cached);
           if (isValidTranscriptList(lines, parsed)) {
-            setRomanTranscripts(parsed);
-            setTranscriptionDisabled(false);
+            queueMicrotask(() => {
+              setRomanTranscripts(parsed);
+              setTranscriptionDisabled(false);
+            });
             return;
           }
           localStorage.removeItem(cacheKey);
@@ -294,7 +310,9 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
     }
 
     let cancelled = false;
-    setTranscriptionDisabled(false);
+    queueMicrotask(() => {
+      if (!cancelled) setTranscriptionDisabled(false);
+    });
 
     fetch("/api/transcribe", {
       method: "POST",
@@ -331,13 +349,13 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
     return () => {
       cancelled = true;
     };
-  }, [lyricsData, currentTrack?.id]);
+  }, [lyricsData, currentTrack?.id, mode]);
 
   // Active line from playback time: setState only when the index changes.
   useEffect(() => {
     const lines = lyricsData?.lines;
     if (!lines?.length) {
-      setActiveIndex((prev) => (prev === -1 ? prev : -1));
+      queueMicrotask(() => setActiveIndex((prev) => (prev === -1 ? prev : -1)));
       return;
     }
     let idx = -1;
@@ -345,7 +363,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
       if (currentTime >= lines[i].time) idx = i;
       else break;
     }
-    setActiveIndex((prev) => (prev === idx ? prev : idx));
+    queueMicrotask(() => setActiveIndex((prev) => (prev === idx ? prev : idx)));
   }, [currentTime, lyricsData]);
 
   // Re-center after web fonts settle (measurements depend on final font metrics).
@@ -474,7 +492,11 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
     },
     [cancelManualHold, cancelScrollAnimation]
   );
-  seekRef.current = seek;
+  useEffect(() => {
+    queueMicrotask(() => {
+      seekRef.current = seek;
+    });
+  }, [seek]);
 
   const coverTracks = useMemo(() => queue, [queue]);
 
@@ -517,7 +539,7 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
       togglePlay();
       return;
     }
-    playTrack(track, queue);
+    playTrack(track, queue, playOptions);
   };
 
   return (
@@ -620,8 +642,10 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                     alt={currentTrack.title}
                     crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
-                      e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                      e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
                     }}
                     className="w-full h-full object-cover"
                   />
@@ -957,13 +981,15 @@ export function NowPlayingFullscreen({ isOpen, onClose }: NowPlayingFullscreenPr
                           return (
                             <>
                               <img
-                                src={getTrackArtworkUrl(track, "max")}
+                                src={getTrackArtworkUrl(track, "hq", mode)}
                                 alt={track.title}
                                 crossOrigin="anonymous"
                                 referrerPolicy="no-referrer"
+                                loading="lazy"
+                                decoding="async"
                                 draggable={false}
                                 onError={(e) => {
-                                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq");
+                                  e.currentTarget.src = getTrackArtworkFallbackUrl(track, "hq", mode);
                                 }}
                                 className="w-10 h-10 rounded-lg object-cover bg-neutral-800 shrink-0 pointer-events-none"
                               />

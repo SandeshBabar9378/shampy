@@ -56,13 +56,13 @@ export function InstallPrompt() {
     <div
       role="dialog"
       aria-label="Install Shubhu"
-      className="fixed z-[80] left-3 right-3 top-[max(0.75rem,env(safe-area-inset-top))] sm:left-auto sm:right-5 sm:top-5 sm:w-[22rem] rounded-2xl border border-white/10 bg-neutral-900/95 backdrop-blur-xl shadow-2xl shadow-black/60 p-4 animate-in fade-in slide-in-from-top-2 duration-300"
+      className="fixed z-[80] left-3 right-3 bottom-[calc(var(--mobile-chrome-height)+0.75rem)] top-auto sm:left-auto sm:right-5 sm:top-5 sm:bottom-auto sm:w-[22rem] rounded-2xl border border-white/10 bg-neutral-900/95 backdrop-blur-xl shadow-2xl shadow-black/60 p-4 animate-in fade-in duration-300"
     >
       <button
         type="button"
         onClick={dismiss}
         aria-label="Close"
-        className="absolute right-2.5 top-2.5 p-1 rounded-full text-neutral-400 hover:text-white cursor-pointer"
+        className="absolute right-1.5 top-1.5 flex h-11 w-11 items-center justify-center rounded-full text-neutral-400 hover:text-white cursor-pointer"
       >
         <X className="w-4 h-4" />
       </button>
@@ -82,13 +82,13 @@ export function InstallPrompt() {
 
       {canPrompt ? (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <button type="button" onClick={dismiss} className="px-3 py-1.5 text-xs text-neutral-400 hover:text-white cursor-pointer">
+          <button type="button" onClick={dismiss} className="inline-flex min-h-11 items-center px-3 text-xs text-neutral-400 hover:text-white cursor-pointer">
             Not now
           </button>
           <button
             type="button"
             onClick={install}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-500 hover:bg-[var(--theme-accent-strong)] text-black text-xs font-semibold rounded-full cursor-pointer shadow-lg shadow-emerald-500/20"
+            className="inline-flex min-h-11 items-center gap-1.5 px-4 bg-[var(--theme-accent)] hover:bg-[var(--theme-accent-strong)] text-[var(--theme-accent-contrast)] text-xs font-semibold rounded-full cursor-pointer shadow-lg shadow-[0_18px_45px_-20px_rgba(var(--theme-accent-rgb),0.5)]"
           >
             <Download className="w-3.5 h-3.5" /> Install
           </button>
@@ -106,7 +106,7 @@ export function InstallPrompt() {
             </li>
           </ol>
           <div className="mt-3 flex justify-end">
-            <button type="button" onClick={dismiss} className="px-4 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-full cursor-pointer">
+            <button type="button" onClick={dismiss} className="inline-flex min-h-11 items-center px-4 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-full cursor-pointer">
               Got it
             </button>
           </div>

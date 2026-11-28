@@ -12,6 +12,8 @@
  * Extra metadata fields remain optional so old rows keep loading.
  */
 
+import type { StreamQuality } from "./ytStream";
+
 export type DownloadGroupKind = "album" | "playlist";
 export type DownloadCollectionKind = "album" | "playlist" | "songs";
 
@@ -67,6 +69,8 @@ export interface StoredAudioRecord {
   groupTitle?: string;
   groupIndex?: number;
   groupTotal?: number;
+  /** Data mode captured when the download started. Optional for old rows. */
+  quality?: StreamQuality;
 }
 
 export interface AudioStorageAdapter {
@@ -158,6 +162,7 @@ function normalize(row: Partial<StoredAudioRecord> | undefined): StoredAudioReco
     groupTitle: row.groupTitle,
     groupIndex: row.groupIndex,
     groupTotal: row.groupTotal,
+    quality: row.quality === "low" || row.quality === "high" ? row.quality : undefined,
   };
 }
 

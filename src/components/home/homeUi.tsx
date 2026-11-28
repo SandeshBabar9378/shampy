@@ -9,6 +9,7 @@
 
 import React from "react";
 import type { LucideIcon } from "lucide-react";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 
 export const LAVENDER = "var(--theme-lavender)";
 
@@ -19,12 +20,28 @@ export const PLACEHOLDER_GRADIENTS = [
   "var(--placeholder-gradient-4)",
 ];
 
-/** Themed icon + bold white title, same style as Made for You. */
-export function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+/** One shelf heading for every phone-Home section: accent icon chip + display title. */
+export function SectionHeader({
+  icon: Icon,
+  title,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="mb-3 flex items-center gap-2 px-4">
-      <Icon className="shubhu-icon-accent h-5 w-5" />
-      <h2 className="text-lg font-bold text-white">{title}</h2>
+    <div className="mb-3 flex items-center justify-between gap-2 px-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
+          style={{ backgroundColor: "color-mix(in oklab, var(--theme-accent) 16%, transparent)" }}
+        >
+          <Icon className="h-3.5 w-3.5" style={{ color: "var(--theme-accent-strong)" }} />
+        </span>
+        <h2 className="truncate font-display text-[19px] font-semibold tracking-tight text-white">{title}</h2>
+      </div>
+      {action}
     </div>
   );
 }
@@ -37,17 +54,17 @@ export function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: 
 export function PlaceholderRow({
   count,
   note,
-  cardClassName,
+  cardClassName = MOBILE_HOME_TOKENS.horizontalCard,
   circle = false,
 }: {
   count: number;
   note: string;
-  cardClassName: string;
+  cardClassName?: string;
   circle?: boolean;
 }) {
   return (
     <>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+      <div className={MOBILE_HOME_TOKENS.horizontalRow}>
         {Array.from({ length: count }).map((_, i) => (
           <span
             key={i}

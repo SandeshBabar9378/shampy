@@ -3,6 +3,7 @@
 import React from "react";
 import { ChevronUp, ChevronDown, GripVertical, ListMusic, X } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { ReorderableList } from "@/components/ReorderableList";
 
 interface QueueReorderProps {
@@ -11,6 +12,8 @@ interface QueueReorderProps {
 
 export function QueueReorder({ onClose }: QueueReorderProps) {
   const { queue, currentTrack, playTrack, setAppQueue } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
 
   const handleMove = (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
@@ -43,7 +46,7 @@ export function QueueReorder({ onClose }: QueueReorderProps) {
           items={queue}
           itemKey={(track) => track.id}
           onReorder={setAppQueue}
-          onRowClick={(track) => playTrack(track)}
+          onRowClick={(track) => playTrack(track, undefined, playOptions)}
           className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar"
           rowClassName={(index) => {
             const isPlaying = queue[index]?.id === currentTrack?.id;

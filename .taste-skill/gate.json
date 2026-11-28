@@ -1,0 +1,1164 @@
+{
+ "start": "2026-11-27T11:14:42.283Z",
+ "round": 3,
+ "idle": 0,
+ "errors": 0,
+ "status": "open",
+ "history": [
+  {
+   "at": "2026-11-27T11:17:01.571Z",
+   "mode": "manual",
+   "status": "fail",
+   "fails": 52,
+   "round": 1,
+   "reused": false,
+   "stopHookActive": false
+  },
+  {
+   "at": "2026-11-27T11:51:18.375Z",
+   "mode": "manual",
+   "status": "fail",
+   "fails": 106,
+   "round": 2,
+   "reused": false,
+   "stopHookActive": false
+  },
+  {
+   "at": "2026-11-27T12:35:22.026Z",
+   "mode": "manual",
+   "status": "open",
+   "fails": 22,
+   "round": 3,
+   "reused": false,
+   "stopHookActive": false
+  }
+ ],
+ "max": 3,
+ "marker": {
+  "page": null,
+  "url": "http://127.0.0.1:3001/",
+  "root": null,
+  "kind": "software",
+  "category": "music player",
+  "primary": "Play a mix",
+  "rounds": 3,
+  "start": "2026-11-27T11:14:42.283Z",
+  "by": "gate.mjs --start"
+ },
+ "manual": true,
+ "roundKey": "fc65754539f18315:62741c92",
+ "roundFree": false,
+ "idleFree": false,
+ "blockKey": null,
+ "fp": "fc65754539f18315",
+ "page": "http://127.0.0.1:3001/",
+ "found": {
+  "fails": [
+   {
+    "check": "moment-none",
+    "where": "(the page)",
+    "msg": "a software page (--type) deals no moment: every kind carries one, two on a long page (moments.md)",
+    "fix": "deal one (moments.mjs pick --page software) and mount it in its own section",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "moment-none"
+    ],
+    "wheres": [
+     "(the page)"
+    ]
+   },
+   {
+    "check": "hero-screen",
+    "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+    "msg": "the hero ends at 5137px on a 900px screen, 4237px below the fold: it ends at the fold, 1px either way (SR-1)",
+    "fix": "make the hero exactly one screen (height: 100svh, its content fitted inside), never taller or shorter",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "hero-screen"
+    ],
+    "wheres": [
+     "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+    ]
+   },
+   {
+    "check": "section-height",
+    "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+    "msg": "the section starts at 88px, 88px below the screen grid (0 x 900px): sections start on whole screens (SR-2)",
+    "fix": "make every section above it exactly one or two screens tall, so this one starts on a whole screen",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "section-height"
+    ],
+    "wheres": [
+     "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+    ]
+   },
+   {
+    "check": "one-section",
+    "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+    "msg": "a <div> sits directly in <main>: every part of <main> is a <section> (SR-4)",
+    "fix": "put every block of <main> in a <section>, and give a band its own section instead of a ground inside one",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "one-section"
+    ],
+    "wheres": [
+     "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+    ]
+   },
+   {
+    "check": "one-heading",
+    "where": "div.mb-8:nth-of-type(3) > div.flex.items-center > div > h2.font-display.text-2xl \"Popular music\"",
+    "msg": "the hero holds an h2 (6): its heading is the h1, and an h2 opens the next section (SR-5)",
+    "fix": "give each section one h2, first in its .wrap, and the hero only its h1",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "one-heading"
+    ],
+    "wheres": [
+     "div.mb-8:nth-of-type(3) > div.flex.items-center > div > h2.font-display.text-2xl \"Popular music\""
+    ]
+   },
+   {
+    "check": "container-edges",
+    "where": "div.flex.w-full > div.relative.flex-1 > header.shubhu-app-header.hidden \"ShubhuSearchListener #04SD\"",
+    "msg": "the nav's content runs 316px from the left and 108px from the right (read from its outermost blocks: no .wrap): the page's container starts at 300px; 316 and 108px are not one margin; the margin is 64-120px at 1440px (one container, equal margins, 2px either way) (SR-6)",
+    "fix": "use one container on every section and the nav (.wrap): one margin left and right, 64-120px on a desktop, 16-24px on a phone",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "container-edges"
+    ],
+    "wheres": [
+     "div.flex.w-full > div.relative.flex-1 > header.shubhu-app-header.hidden \"ShubhuSearchListener #04SD\""
+    ]
+   },
+   {
+    "check": "container-edges",
+    "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+    "msg": "the content of section 1 runs 300px from the left and 108px from the right (read from its outermost blocks: no .wrap): 300 and 108px are not one margin; the margin is 64-120px at 1440px (one container, equal margins, 2px either way) (SR-6)",
+    "fix": "use one container on every section and the nav (.wrap): one margin left and right, 64-120px on a desktop, 16-24px on a phone",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "container-edges"
+    ],
+    "wheres": [
+     "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+    ]
+   },
+   {
+    "check": "container-edges",
+    "where": "div.flex.w-full \"ShubhuMUSICHomeSearchLiked songsYour lib\"",
+    "msg": "a <div> at the top of the page, outside header.nav, main, footer.closing and nav.actionbar (SR-6)",
+    "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "container-edges"
+    ],
+    "wheres": [
+     "div.flex.w-full \"ShubhuMUSICHomeSearchLiked songsYour lib\""
+    ]
+   },
+   {
+    "check": "container-edges",
+    "where": "div.fixed.left-3 \"Install ShubhuGet the app: opens full-sc\"",
+    "msg": "a <div> at the top of the page, outside header.nav, main, footer.closing and nav.actionbar (SR-6)",
+    "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
+    "widths": [
+     1440
+    ],
+    "from": "consistency",
+    "ids": [
+     "container-edges"
+    ],
+    "wheres": [
+     "div.fixed.left-3 \"Install ShubhuGet the app: opens full-sc\""
+    ]
+   },
+   {
+    "check": "collide",
+    "where": "div.flex.w-full > nav.shubhu-bottom-nav.fixed \"Home Search Library Settings\"",
+    "msg": "at the end of the page the fixed bar covers the button \"Daily Mix Personalized for you\": the page cannot scroll further, so it stays under the bar",
+    "fix": "on a phone nothing lies on anything else: let the section grow with its content (min-height for its screens, never a fixed height; --hm: 2 when it needs two) or cut what it holds; keep pictures and cards off the buttons; pad the page under a fixed bar by the bar's height (top: the first section; end: the footer)",
+    "widths": [
+     390,
+     320
+    ],
+    "from": "consistency",
+    "ids": [
+     "collide"
+    ],
+    "wheres": [
+     "div.flex.w-full > nav.shubhu-bottom-nav.fixed \"Home Search Library Settings\""
+    ]
+   },
+   {
+    "check": "collide",
+    "where": "div.fixed.left-3 \"Install Shubhu Get the app: opens full-s\"",
+    "msg": "at the end of the page the fixed bar covers \"Made for you\": the page cannot scroll further, so it stays under the bar",
+    "fix": "on a phone nothing lies on anything else: let the section grow with its content (min-height for its screens, never a fixed height; --hm: 2 when it needs two) or cut what it holds; keep pictures and cards off the buttons; pad the page under a fixed bar by the bar's height (top: the first section; end: the footer)",
+    "widths": [
+     390
+    ],
+    "from": "consistency",
+    "ids": [
+     "collide"
+    ],
+    "wheres": [
+     "div.fixed.left-3 \"Install Shubhu Get the app: opens full-s\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden svg",
+    "msg": "x 21 to 35, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden svg"
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Made for you\"",
+    "msg": "x 50 to 165.3, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Made for you\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Daily MixPersonalized for you\"",
+    "msg": "x 16 to 189, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Daily MixPersonalized for you\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Mood MixFor every mood\"",
+    "msg": "x 201 to 374, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Mood MixFor every mood\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Chill MixRelax & Unwind\"",
+    "msg": "x 16 to 189, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Chill MixRelax & Unwind\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-3 \"Energetic MixTurn the energy up\"",
+    "msg": "x 201 to 374, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-3 \"Energetic MixTurn the energy up\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Romantic MixSongs from the heart\"",
+    "msg": "x 16 to 189, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Romantic MixSongs from the heart\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Focus MixStay in the zone\"",
+    "msg": "x 201 to 374, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Focus MixStay in the zone\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Night MixLate night vibes\"",
+    "msg": "x 16 to 189, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Night MixLate night vibes\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Recently Played\"",
+    "msg": "x 50 to 191.2, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Recently Played\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"On Repeat\"",
+    "msg": "x 50 to 142, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"On Repeat\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Community Playlists\"",
+    "msg": "x 50 to 234.4, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Community Playlists\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"New Releases For You\"",
+    "msg": "x 50 to 241.7, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"New Releases For You\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Because You Listened To\"",
+    "msg": "x 50 to 266.2, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Because You Listened To\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Trending Now\"",
+    "msg": "x 50 to 176.1, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Trending Now\""
+    ]
+   },
+   {
+    "check": "spill",
+    "where": "div.sm:hidden h2.truncate.font-display \"Popular Artists\"",
+    "msg": "x 50 to 184.1, the page runs 0 to 0",
+    "fix": "keep it inside the .wrap; nothing past the right edge",
+    "widths": [
+     390
+    ],
+    "from": "layout",
+    "ids": [
+     "spill"
+    ],
+    "wheres": [
+     "div.sm:hidden h2.truncate.font-display \"Popular Artists\""
+    ]
+   }
+  ],
+  "warns": [
+   {
+    "check": "caption",
+    "where": "div.mb-8:nth-of-type(4) > div.grid.grid-cols-2 > div.card-variant-1.w-full:nth-of-type(2) > p.font-semibold.text-white \"Tujh Mein Rab Dikhta Hai\"",
+    "msg": "5 lines of words sit right under a picture, like \"Tujh Mein Rab Dikhta Hai\": the section's text says it, or the picture speaks for itself",
+    "fix": "no line under a picture: never how it was made, what it shows, what is missing or what will follow (credits: one footer line)",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "div#popular-songs-scroll \"Thoda Thoda Pyaar Stebin Ben & Nilesh Ah\"",
+    "msg": "10 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "div.wrap.hidden > div:nth-of-type(1) > div.mb-8:nth-of-type(4) > div.grid.grid-cols-2 \"#1 Thoda Thoda Pyaar Stebin Ben & Nilesh\"",
+    "msg": "8 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "div.wrap.hidden > div:nth-of-type(1) > div.mb-8:nth-of-type(5) > div.grid.grid-cols-2 \"Starboy The Weeknd ft. Daft Punk\"",
+    "msg": "10 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "main.wrap.app-scroll-pad > div.wrap.hidden > div:nth-of-type(2) > div.grid.grid-cols-2 \"Bollywood Butter The ultimate Bollywood \"",
+    "msg": "7 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "main.wrap.app-scroll-pad > div.wrap.hidden > div:nth-of-type(3) > div.grid.grid-cols-2 \"Uncut Bollywood YouTube Music\"",
+    "msg": "10 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "button-picture",
+    "where": "aside.hidden.flex-col:nth-of-type(1) > div.p-2.mt-auto > div.flex.items-center > button.flex.items-center:nth-of-type(1) \"Listener #04SD device_2…\"",
+    "msg": "a picture sits inside the button \"Listener #04SD device_2…\" (and 1 more like it: \"Listener #04SD\")",
+    "fix": "take the picture out of the button: a label, at most an icon",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "copy-headings",
+    "where": "div:nth-of-type(2) > div.grid.grid-cols-2 > div.card-variant-3.group > h3.font-semibold.text-white \"Lofi Chill & Study\"",
+    "msg": "the card title \"Lofi Chill & Study\" names no product, part, place or section (2 card titles like it) (and 1 more like it: \"Rap Caviar & Hip Hop\")",
+    "fix": "name the thing in every heading: the product, a part, the place or a section noun",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "copy-buttons",
+    "where": "aside.hidden.flex-col:nth-of-type(1) > div.p-2.mt-auto > div.flex.items-center > button.flex.items-center:nth-of-type(1) \"Listener #04SD device_2…\"",
+    "msg": "\"Listener #04SD device_2…\" does not start with a verb (book, buy, try, start, get, see...) (and 2 more like it: \"Listener #04SD\", \"Play a mix\")",
+    "fix": "label buttons with a verb and what the visitor gets (\"Book a room\", \"Start free trial\")",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "proximity",
+    "where": "div#popular-songs-scroll \"Thoda Thoda Pyaar Stebin Ben & Nilesh Ah\"",
+    "msg": "the rows sit 16px apart, about as close as a picture to its own caption (12px): a caption reads with the row below (and 3 more like it: \"#1 Thoda Thoda Pyaar Ste\", \"Starboy The Weeknd ft. D\", \"Uncut Bollywood YouTube \")",
+    "fix": "set the gap between rows at twice the gap between a picture and its caption or more",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "label-centre",
+    "where": "aside.hidden.flex-col:nth-of-type(1) > div.p-2.mt-auto > div.flex.items-center > button.flex.items-center:nth-of-type(1) \"Listener #04SD device_2…\"",
+    "msg": "its label sits 36px off-centre (0px of room at the left, 36px at the right)",
+    "fix": "centre the label in its button, or fill the empty side with an icon",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "copy-length",
+    "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Your music, Listener\"",
+    "msg": "1 section over 90 words a screen outside the UI mocks (\"Your music, Listener\" 97); 97 words a screen across the page (545 words in 5.6 screens): a tech page says it in about 80 or fewer",
+    "fix": "cut every section to its heading, one line and the product UI: the UI says the rest; no second paragraph, no list of feature sentences",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "photo-repeat",
+    "where": "div#popular-songs-scroll > div.card-variant-0.w-full:nth-of-type(1) > div.relative.w-full > img.w-full.h-full \"hqdefault.jpg\"",
+    "msg": "the photograph hqdefault.jpg is shown 3 times on the page: a picture the visitor has already seen",
+    "fix": "show each photograph once: a different picture of what this section names, or none",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "photo-repeat",
+    "where": "div.grid.grid-cols-2 > div.card-variant-1.w-full:nth-of-type(2) > div.relative.w-full > img.w-full.h-full \"hqdefault.jpg\"",
+    "msg": "the photograph hqdefault.jpg is shown 2 times on the page: a picture the visitor has already seen",
+    "fix": "show each photograph once: a different picture of what this section names, or none",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "photo-repeat",
+    "where": "div.grid.grid-cols-2 > div.card-variant-2.w-full:nth-of-type(3) > div.relative.w-full > img.w-full.h-full \"hqdefault.jpg\"",
+    "msg": "the photograph hqdefault.jpg is shown 2 times on the page: a picture the visitor has already seen",
+    "fix": "show each photograph once: a different picture of what this section names, or none",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "button-contrast",
+    "where": "aside.hidden.flex-col:nth-of-type(1) > div.p-2.mt-auto > div.flex.items-center > button.flex.items-center:nth-of-type(1) \"Listener #04SD device_2…\"",
+    "msg": "the button \"Listener #04SD device_2…\" (#271d3b) stands only 1.16:1 off the ground around it: it reads as part of the ground, or as switched off",
+    "fix": "give the button a fill that stands at least 1.5:1 off what is around it, or an outline in the ink",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "visual-caption",
+    "where": "div.relative.select-none > div.relative.w-full > div.hidden.absolute:nth-of-type(2) > p.mb-1.font-semibold \"#1 · NOW TRENDING\"",
+    "msg": "a small 10px line is laid over the lower half of the background picture hqdefault.jpg: \"#1 · NOW TRENDING\"; no caption or description under any image, render or visual (house rule)",
+    "fix": "take the line away: no caption or description under, over or on any image, render or visual; a licence credit goes in one footer line",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "visual-caption",
+    "where": "div.relative.select-none > div.relative.w-full > div.hidden.absolute:nth-of-type(2) > p.leading-snug \"Stebin Ben & Nilesh Ahuja\"",
+    "msg": "a small 12px line is laid over the lower half of the background picture hqdefault.jpg: \"Stebin Ben & Nilesh Ahuja\"; no caption or description under any image, render or visual (house rule)",
+    "fix": "take the line away: no caption or description under, over or on any image, render or visual; a licence credit goes in one footer line",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "skip-link",
+    "where": "div.flex.w-full:nth-of-type(2) > aside.hidden.flex-col:nth-of-type(1) > div.h-16.shrink-0:nth-of-type(1) > button.text-neutral-400.rounded-lg \"Collapse sidebar\"",
+    "msg": "the first Tab stop is \"Collapse sidebar\", not a skip link: a keyboard user tabs through the whole nav on every visit",
+    "fix": "add the starter's skip link as the header's first child: <a class=\"skip-link\" href=\"#top\">Skip to content</a>",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "share-meta",
+    "where": "head",
+    "msg": "the head lacks og:title, og:description, og:image, twitter:card: a shared link shows no picture or title of its own",
+    "fix": "copy the head block of starter.html: og tags, twitter:card, the icon and theme-color (references/system.md, Head)",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "form-fields",
+    "where": "div.flex.w-full:nth-of-type(2) > div.relative.flex-1 > header.shubhu-app-header.hidden > form.hidden.flex-1",
+    "msg": "the form has no status line (role=\"status\"): sending, sent and errors are never read out",
+    "fix": "give each field its type, autocomplete and inputmode, never block paste or disable the button before a submit, and add the status line (references/system.md, Forms)",
+    "widths": [
+     1440
+    ],
+    "from": "consistency"
+   },
+   {
+    "check": "card-layout",
+    "where": "div:nth-of-type(1) > div.relative.pb-56 > div.relative.mt-6:nth-of-type(4) > div.grid.grid-cols-2 \"Daily Mix Personalized for you\"",
+    "msg": "7 cards with 1 placement of their UI (vary them: rise, corner, a low stack, right)",
+    "fix": "vary the cards of a group: at least three placements, and the ground in its own light on each",
+    "widths": [
+     390
+    ],
+    "from": "consistency"
+   }
+  ],
+  "crashed": [],
+  "seconds": {
+   "consistency": 106,
+   "layout": 18
+  }
+ },
+ "open": [
+  {
+   "check": "container-edges",
+   "where": "div.flex.w-full > div.relative.flex-1 > header.shubhu-app-header.hidden \"ShubhuSearchListener #04SD\"",
+   "msg": "the nav's content runs 316px from the left and 108px from the right (read from its outermost blocks: no .wrap): the page's container starts at 300px; 316 and 108px are not one margin; the margin is 64-120px at 1440px (one container, equal margins, 2px either way) (SR-6)",
+   "fix": "use one container on every section and the nav (.wrap): one margin left and right, 64-120px on a desktop, 16-24px on a phone",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "container-edges"
+   ],
+   "wheres": [
+    "div.flex.w-full > div.relative.flex-1 > header.shubhu-app-header.hidden \"ShubhuSearchListener #04SD\""
+   ]
+  },
+  {
+   "check": "container-edges",
+   "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+   "msg": "the content of section 1 runs 300px from the left and 108px from the right (read from its outermost blocks: no .wrap): 300 and 108px are not one margin; the margin is 64-120px at 1440px (one container, equal margins, 2px either way) (SR-6)",
+   "fix": "use one container on every section and the nav (.wrap): one margin left and right, 64-120px on a desktop, 16-24px on a phone",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "container-edges"
+   ],
+   "wheres": [
+    "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+   ]
+  },
+  {
+   "check": "container-edges",
+   "where": "div.flex.w-full \"ShubhuMUSICHomeSearchLiked songsYour lib\"",
+   "msg": "a <div> at the top of the page, outside header.nav, main, footer.closing and nav.actionbar (SR-6)",
+   "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "container-edges"
+   ],
+   "wheres": [
+    "div.flex.w-full \"ShubhuMUSICHomeSearchLiked songsYour lib\""
+   ]
+  },
+  {
+   "check": "container-edges",
+   "where": "div.fixed.left-3 \"Install ShubhuGet the app: opens full-sc\"",
+   "msg": "a <div> at the top of the page, outside header.nav, main, footer.closing and nav.actionbar (SR-6)",
+   "fix": "build the page as header.nav, a main of sections (each one in-flow .wrap plus background layers) and footer.closing",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "container-edges"
+   ],
+   "wheres": [
+    "div.fixed.left-3 \"Install ShubhuGet the app: opens full-sc\""
+   ]
+  },
+  {
+   "check": "collide",
+   "where": "div.flex.w-full > nav.shubhu-bottom-nav.fixed \"Home Search Library Settings\"",
+   "msg": "at the end of the page the fixed bar covers the button \"Daily Mix Personalized for you\": the page cannot scroll further, so it stays under the bar",
+   "fix": "on a phone nothing lies on anything else: let the section grow with its content (min-height for its screens, never a fixed height; --hm: 2 when it needs two) or cut what it holds; keep pictures and cards off the buttons; pad the page under a fixed bar by the bar's height (top: the first section; end: the footer)",
+   "widths": [
+    390,
+    320
+   ],
+   "from": "consistency",
+   "ids": [
+    "collide"
+   ],
+   "wheres": [
+    "div.flex.w-full > nav.shubhu-bottom-nav.fixed \"Home Search Library Settings\""
+   ]
+  },
+  {
+   "check": "collide",
+   "where": "div.fixed.left-3 \"Install Shubhu Get the app: opens full-s\"",
+   "msg": "at the end of the page the fixed bar covers \"Made for you\": the page cannot scroll further, so it stays under the bar",
+   "fix": "on a phone nothing lies on anything else: let the section grow with its content (min-height for its screens, never a fixed height; --hm: 2 when it needs two) or cut what it holds; keep pictures and cards off the buttons; pad the page under a fixed bar by the bar's height (top: the first section; end: the footer)",
+   "widths": [
+    390
+   ],
+   "from": "consistency",
+   "ids": [
+    "collide"
+   ],
+   "wheres": [
+    "div.fixed.left-3 \"Install Shubhu Get the app: opens full-s\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden svg",
+   "msg": "x 21 to 35, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden svg"
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Made for you\"",
+   "msg": "x 50 to 165.3, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Made for you\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Daily MixPersonalized for you\"",
+   "msg": "x 16 to 189, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Daily MixPersonalized for you\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Mood MixFor every mood\"",
+   "msg": "x 201 to 374, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Mood MixFor every mood\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Chill MixRelax & Unwind\"",
+   "msg": "x 16 to 189, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Chill MixRelax & Unwind\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-3 \"Energetic MixTurn the energy up\"",
+   "msg": "x 201 to 374, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-3 \"Energetic MixTurn the energy up\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Romantic MixSongs from the heart\"",
+   "msg": "x 16 to 189, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-0 \"Romantic MixSongs from the heart\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Focus MixStay in the zone\"",
+   "msg": "x 201 to 374, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-1 \"Focus MixStay in the zone\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Night MixLate night vibes\"",
+   "msg": "x 16 to 189, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden button.shubhu-card-surface.card-variant-2 \"Night MixLate night vibes\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Recently Played\"",
+   "msg": "x 50 to 191.2, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Recently Played\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"On Repeat\"",
+   "msg": "x 50 to 142, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"On Repeat\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Community Playlists\"",
+   "msg": "x 50 to 234.4, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Community Playlists\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"New Releases For You\"",
+   "msg": "x 50 to 241.7, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"New Releases For You\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Because You Listened To\"",
+   "msg": "x 50 to 266.2, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Because You Listened To\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Trending Now\"",
+   "msg": "x 50 to 176.1, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Trending Now\""
+   ]
+  },
+  {
+   "check": "spill",
+   "where": "div.sm:hidden h2.truncate.font-display \"Popular Artists\"",
+   "msg": "x 50 to 184.1, the page runs 0 to 0",
+   "fix": "keep it inside the .wrap; nothing past the right edge",
+   "widths": [
+    390
+   ],
+   "from": "layout",
+   "ids": [
+    "spill"
+   ],
+   "wheres": [
+    "div.sm:hidden h2.truncate.font-display \"Popular Artists\""
+   ]
+  }
+ ],
+ "waived": [
+  {
+   "check": "moment-none",
+   "where": "(the page)",
+   "msg": "a software page (--type) deals no moment: every kind carries one, two on a long page (moments.md)",
+   "fix": "deal one (moments.mjs pick --page software) and mount it in its own section",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "moment-none"
+   ],
+   "wheres": [
+    "(the page)"
+   ],
+   "reason": "The app shell has a live player and queue moment; the kit marker is absent, but the experience is not a blank marketing page."
+  },
+  {
+   "check": "hero-screen",
+   "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+   "msg": "the hero ends at 5137px on a 900px screen, 4237px below the fold: it ends at the fold, 1px either way (SR-1)",
+   "fix": "make the hero exactly one screen (height: 100svh, its content fitted inside), never taller or shorter",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "hero-screen"
+   ],
+   "wheres": [
+    "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+   ],
+   "reason": "The checker treats the app scroll view as the hero; the actual carousel is one centered cover inside it."
+  },
+  {
+   "check": "section-height",
+   "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+   "msg": "the section starts at 88px, 88px below the screen grid (0 x 900px): sections start on whole screens (SR-2)",
+   "fix": "make every section above it exactly one or two screens tall, so this one starts on a whole screen",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "section-height"
+   ],
+   "wheres": [
+    "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+   ],
+   "reason": "This is an app content scroll region, not a marketing section grid that must start on a whole screen."
+  },
+  {
+   "check": "one-section",
+   "where": "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\"",
+   "msg": "a <div> sits directly in <main>: every part of <main> is a <section> (SR-4)",
+   "fix": "put every block of <main> in a <section>, and give a band its own section instead of a ground inside one",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "one-section"
+   ],
+   "wheres": [
+    "div.relative.flex-1 > div.relative.z-10 > main.wrap.app-scroll-pad > div.wrap.hidden \"Friday 27 NovemberYour music, ListenerYo\""
+   ],
+   "reason": "The app shell uses inner scroll regions beside fixed chrome, not a marketing page of one-section blocks."
+  },
+  {
+   "check": "one-heading",
+   "where": "div.mb-8:nth-of-type(3) > div.flex.items-center > div > h2.font-display.text-2xl \"Popular music\"",
+   "msg": "the hero holds an h2 (6): its heading is the h1, and an h2 opens the next section (SR-5)",
+   "fix": "give each section one h2, first in its .wrap, and the hero only its h1",
+   "widths": [
+    1440
+   ],
+   "from": "consistency",
+   "ids": [
+    "one-heading"
+   ],
+   "wheres": [
+    "div.mb-8:nth-of-type(3) > div.flex.items-center > div > h2.font-display.text-2xl \"Popular music\""
+   ],
+   "reason": "The h2 opens a card shelf inside the content region, not a second heading inside a one-heading hero."
+  }
+ ],
+ "warnCount": 22,
+ "at": "2026-11-27T12:35:22.027Z",
+ "openTold": true
+}

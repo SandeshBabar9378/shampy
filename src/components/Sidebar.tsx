@@ -7,6 +7,7 @@ import { usePlayer } from "@/context/PlayerContext";
 import { PlaylistCollage } from "./PlaylistCollage";
 import { ShubhuBrand } from "./ShubhuLogo";
 import { DOWNLOADS_ENABLED } from "@/lib/features";
+import { normalizeArtworkUrl } from "@/lib/artwork";
 
 interface SidebarProps {
   currentView: string;
@@ -21,13 +22,13 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreatePlaylist, onOpenSettings, collapsed, onToggleCollapsed, hideDesktop = false }: SidebarProps) {
-  const { user, likedSongIds, playlists, savedPlaylists, setMobileExpanded, currentTrack } = usePlayer();
+  const { user, playlists, savedPlaylists, setMobileExpanded } = usePlayer();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
 
   React.useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
   }, []);
 
   const navItems = [
@@ -193,9 +194,11 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
                   <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-neutral-800 shadow-md">
                     {sp.thumbnail ? (
                       <img
-                        src={sp.thumbnail}
+                        src={normalizeArtworkUrl(sp.thumbnail)}
                         alt={sp.title}
                         referrerPolicy="no-referrer"
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.src = "/placeholder.svg";
@@ -260,7 +263,7 @@ export function Sidebar({ currentView, onSelectView, onOpenProfile, onOpenCreate
                   if (onOpenSettings) onOpenSettings();
                   else router.push("/settings");
                 }}
-                className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                className="flex h-11 w-11 items-center justify-center text-neutral-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
                 title="Settings"
               >
                 <Settings className="w-4 h-4" />

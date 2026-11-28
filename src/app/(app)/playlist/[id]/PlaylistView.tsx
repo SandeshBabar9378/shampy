@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, ListMusic, Play, Plus, Check, MoreVertical, X } from "lucide-react";
 import { AnimatedShuffle } from "@/components/animations/MotionIcons";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { TrackRow } from "@/components/TrackRow";
 import { DownloadStatusList } from "@/components/DownloadStatusList";
 import { Track, SavedPlaylist } from "@/lib/types";
@@ -55,6 +56,8 @@ export function PlaylistView({ id }: { id: string }) {
     downloadTracks,
     offlineIds,
   } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const [playlist, setPlaylist] = useState<PlaylistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,28 +67,36 @@ export function PlaylistView({ id }: { id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setDownloadNotice(null);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+        setDownloadNotice(null);
+      }
+    });
 
     if (isTestPlaylist) {
       const tracks = downloadTestPlaylist.tracks || [];
-      setPlaylist({
-        id,
-        title: downloadTestPlaylist.name,
-        author: "Temporary test provider",
-        thumbnail: downloadTestPlaylist.coverUrl || getDefaultArtworkFallbackUrl(),
-        trackCount: tracks.length,
-        tracks: tracks.map((track) => ({
-          videoId: track.id,
-          title: track.title,
-          artist: track.artist,
-          album: track.album,
-          thumbnail: track.coverUrl,
-          duration: track.duration,
-        })),
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setPlaylist({
+            id,
+            title: downloadTestPlaylist.name,
+            author: "Temporary test provider",
+            thumbnail: downloadTestPlaylist.coverUrl || getDefaultArtworkFallbackUrl(),
+            trackCount: tracks.length,
+            tracks: tracks.map((track) => ({
+              videoId: track.id,
+              title: track.title,
+              artist: track.artist,
+              album: track.album,
+              thumbnail: track.coverUrl,
+              duration: track.duration,
+            })),
+          });
+          setLoading(false);
+        }
       });
-      setLoading(false);
       return () => {
         cancelled = true;
       };
@@ -167,7 +178,7 @@ export function PlaylistView({ id }: { id: string }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
+      <main className="app-scroll-pad flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 scrollbar-thin scrollbar-thumb-neutral-800">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-3 sm:mb-6"
@@ -190,14 +201,27 @@ export function PlaylistView({ id }: { id: string }) {
           ) : (
             <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-200">
               {/* Playlist header */}
-              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl bg-gradient-to-b from-neutral-800/70 to-neutral-950/40">
-                <div className="w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-lg overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-800/70 to-neutral-950/40 p-4 shadow-2xl sm:rounded-3xl sm:p-8">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-30"
+                  style={{
+                    backgroundImage: `url("${playlist.thumbnail || getDefaultArtworkFallbackUrl()}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: "blur(60px) saturate(1.3)",
+                  }}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/55 to-transparent" />
+                <div className="relative w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-lg overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
                   {playlist.thumbnail ? (
                     <img
                       src={playlist.thumbnail}
                       alt={playlist.title}
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = getDefaultArtworkFallbackUrl();
                       }}
@@ -210,7 +234,7 @@ export function PlaylistView({ id }: { id: string }) {
                   )}
                 </div>
 
-                <div className="text-center sm:text-left flex-1 min-w-0">
+                <div className="relative z-10 min-w-0 flex-1 text-center sm:text-left">
                   <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">
                     PLAYLIST{isTestPlaylist ? " • TEMPORARY TEST" : ""}
                   </p>
@@ -287,7 +311,7 @@ export function PlaylistView({ id }: { id: string }) {
                 {tracks.length > 0 && (
                   <>
                     <button
-                      onClick={() => playTrack(tracks[0], tracks)}
+                      onClick={() => playTrack(tracks[0], tracks, playOptions)}
                       className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
                       title="Play Playlist"
                       aria-label="Play Playlist"
@@ -311,12 +335,15 @@ export function PlaylistView({ id }: { id: string }) {
                 )}
                 <button
                   onClick={handleToggleSave}
-                  className={`p-1.5 transition-colors cursor-pointer ${
-                    isSaved ? "text-emerald-400" : "text-neutral-500 hover:text-white"
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all cursor-pointer active:scale-95 ${
+                    isSaved
+                      ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300"
+                      : "border-white/10 bg-neutral-900 text-neutral-300 hover:border-white/20 hover:text-white"
                   }`}
                   title={isSaved ? "Remove from library" : "Save to library"}
+                  aria-pressed={isSaved}
                 >
-                  {isSaved ? <Check className="w-4 h-4 text-emerald-400" /> : <Plus className="w-4 h-4" />}
+                  {isSaved ? <Check className="w-[18px] h-[18px]" /> : <Plus className="w-[18px] h-[18px]" />}
                 </button>
                 {tracks.length > 0 && (
                   <button

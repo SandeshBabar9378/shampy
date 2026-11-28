@@ -20,11 +20,13 @@ import {
   Download,
   Share,
   PlusSquare,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePlayer } from "@/context/PlayerContext";
 import { useTheme, type ThemeId } from "@/context/ThemeContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { AVATAR_OPTIONS } from "@/lib/avatars";
 import { AccountSection } from "@/components/AccountSection";
 import { InstallAppCard } from "@/components/InstallAppCard";
@@ -54,7 +56,25 @@ const THEMES: { id: ThemeId; name: string; description: string; swatch: string }
 const NAV: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "install", label: "Get the app", icon: Smartphone },
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "data", label: "Data usage", icon: Gauge },
   { id: "profile", label: "Your profile", icon: Sparkles },
+];
+
+const DATA_MODE_OPTIONS: {
+  id: "low" | "high";
+  name: string;
+  description: string;
+}[] = [
+  {
+    id: "low",
+    name: "Low (data saver)",
+    description: "Small artwork, lighter requests",
+  },
+  {
+    id: "high",
+    name: "High (full quality)",
+    description: "Best artwork and full results",
+  },
 ];
 
 interface SectionCardProps {
@@ -89,6 +109,7 @@ function SectionCard({ id, icon, title, description, action, children }: Section
 }
 
 interface MobileCardProps {
+  id?: string;
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
@@ -97,9 +118,9 @@ interface MobileCardProps {
 }
 
 /** Glassmorphism card used only by the mobile Settings layout. */
-function MobileCard({ icon, title, subtitle, action, children }: MobileCardProps) {
+function MobileCard({ id, icon, title, subtitle, action, children }: MobileCardProps) {
   return (
-    <section className="shubhu-card-surface relative overflow-hidden rounded-[24px] border p-4 shadow-[0_16px_40px_-24px_rgba(var(--mp-shadow-rgb),0.9)] ring-1 ring-inset ring-[var(--theme-border)] backdrop-blur-xl">
+    <section id={id} className="shubhu-card-surface relative scroll-mt-4 overflow-hidden rounded-3xl border p-4 shadow-[0_16px_40px_-24px_rgba(var(--mp-shadow-rgb),0.9)] ring-1 ring-inset ring-[var(--theme-border)] backdrop-blur-xl">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(var(--mp-ink-rgb),0.055),transparent_55%)]"
@@ -127,6 +148,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, updateUser } = usePlayer();
   const { theme, setTheme } = useTheme();
+  const { mode, setMode } = useDataMode();
   const { installed, canPrompt, ios } = useInstallState();
   const [username, setUsername] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
@@ -134,8 +156,10 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setUsername(user?.username || "");
-    setSelectedAvatar(user?.avatar || AVATAR_OPTIONS[0]);
+    queueMicrotask(() => {
+      setUsername(user?.username || "");
+      setSelectedAvatar(user?.avatar || AVATAR_OPTIONS[0]);
+    });
   }, [user?.username, user?.avatar]);
 
   const handleCancel = () => {
@@ -205,15 +229,28 @@ export default function SettingsPage() {
           <div className="min-w-0">
             <h1 className="text-[20px] font-semibold leading-tight tracking-tight text-white">Settings</h1>
             <p className="truncate text-[12px] text-neutral-400">
-              Customize Shubhu your way <span aria-hidden="true">✨</span>
+              Make Shubhu sound and feel like yours
             </p>
           </div>
         </header>
 
         <div className="relative z-10 min-h-0 flex-1 overflow-y-auto scroll-smooth">
-          <div className="space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_var(--mobile-bottom-nav-height)_+_var(--mobile-mini-player-height))] pt-3">
+          <nav aria-label="Settings sections" className="mb-3 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none">
+            {NAV.map(({ id, label, icon: Icon }) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-neutral-800/70 bg-neutral-950/50 px-3.5 text-xs font-medium text-neutral-300 transition-colors hover:border-neutral-700 hover:text-white"
+              >
+                <Icon className="h-3.5 w-3.5 text-emerald-400" />
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_var(--mobile-chrome-height))] pt-1">
             {/* Get the App */}
             <MobileCard
+              id="install"
               icon={<Smartphone className="h-5 w-5" />}
               title="Get the App"
               subtitle={
@@ -270,7 +307,7 @@ export default function SettingsPage() {
             </MobileCard>
 
             {/* Appearance */}
-            <MobileCard icon={<Palette className="h-5 w-5" />} title="Appearance" subtitle="Make Shubhu feel like you">
+            <MobileCard id="appearance" icon={<Palette className="h-5 w-5" />} title="Appearance" subtitle="Make Shubhu feel like you">
               <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">Theme</p>
               <div className="grid grid-cols-3 gap-2.5">
                 {THEMES.map((option) => {
@@ -315,9 +352,55 @@ export default function SettingsPage() {
               <p className="mt-3 text-[11px] text-neutral-500">{currentTheme.description}</p>
             </MobileCard>
 
+            {/* Data usage */}
+            <MobileCard
+              id="data"
+              icon={<Gauge className="h-5 w-5" />}
+              title="Data usage"
+              subtitle="Choose how much data Shubhu uses"
+            >
+              <div className="grid grid-cols-2 gap-2.5">
+                {DATA_MODE_OPTIONS.map((option) => {
+                  const selected = mode === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setMode(option.id)}
+                      aria-pressed={selected}
+                      title={option.description}
+                      className={`relative min-w-0 rounded-2xl border p-3 text-left transition-all cursor-pointer ${
+                        selected
+                          ? "border-emerald-400 bg-emerald-500/[0.07] ring-2 ring-emerald-500/40"
+                          : "border-neutral-800/80 bg-neutral-950/40 active:scale-[0.98]"
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${selected ? "bg-emerald-400" : "bg-neutral-500"}`}
+                        />
+                        <span className={`text-[12px] font-semibold ${selected ? "text-white" : "text-neutral-300"}`}>
+                          {option.name}
+                        </span>
+                      </span>
+                      <span className="mt-1 block text-[10px] leading-snug text-neutral-500">
+                        {option.description}
+                      </span>
+                      {selected ? (
+                        <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[var(--theme-accent-contrast)] shadow">
+                          <Check className="h-3 w-3" />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </MobileCard>
+
             {/* Your Profile */}
             <form id="mobile-settings-form" onSubmit={handleSave}>
               <MobileCard
+                id="profile"
                 icon={<User className="h-5 w-5" />}
                 title="Your Profile"
                 subtitle={user?.email ? "Synced account" : "Guest on this device"}
@@ -399,7 +482,7 @@ export default function SettingsPage() {
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="e.g. Dilip or BeatMaker"
                       required
-                      className="h-12 w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 pl-10 pr-4 text-[14px] text-white placeholder:text-neutral-600 transition-colors focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      className="h-12 w-full rounded-2xl border border-neutral-800 bg-neutral-950/60 pl-10 pr-4 text-[14px] text-white placeholder:text-neutral-600 transition-colors focus:border-emerald-400/70 focus:ring-2 focus:ring-emerald-500/20"
                     />
                   </div>
                 </div>
@@ -472,11 +555,11 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ─── Desktop (unchanged) ─────────────────────────────────────────── */}
-      <div className="hidden lg:block">
+      {/* ─── Desktop ─────────────────────────────────────────────────────── */}
+      <div className="hidden h-full min-h-0 lg:block">
         <div
           data-theme-region="app"
-          className="flex min-h-dvh w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
+          className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[var(--background)] text-white shubhu-radial-bg"
         >
       {/* Top Bar */}
       <header className="shubhu-app-header relative z-20 shrink-0 border-b backdrop-blur-xl">
@@ -627,6 +710,60 @@ export default function SettingsPage() {
                 </div>
               </SectionCard>
 
+              {/* Data usage */}
+              <SectionCard
+                id="data"
+                icon={<Gauge className="h-5 w-5" />}
+                title="Data usage"
+                description="Choose how much data Shubhu uses"
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {DATA_MODE_OPTIONS.map((option) => {
+                    const selected = mode === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setMode(option.id)}
+                        aria-pressed={selected}
+                        className={`group relative flex items-start gap-3 overflow-hidden rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
+                          selected
+                            ? "border-emerald-500/60 bg-emerald-500/[0.07] shadow-lg shadow-emerald-500/10"
+                            : "border-neutral-800 bg-neutral-950/40 hover:border-neutral-700 hover:bg-neutral-900/60"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${
+                            selected
+                              ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                              : "border-neutral-800 bg-neutral-900/60 text-neutral-500"
+                          }`}
+                        >
+                          <Gauge className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-white">{option.name}</span>
+                          <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-400">
+                            {option.description}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors ${
+                            selected
+                              ? "border-emerald-400 bg-emerald-500/20 text-emerald-300"
+                              : "border-neutral-700 text-transparent"
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
               {/* Your Profile */}
               <SectionCard
                 id="profile"
@@ -722,7 +859,7 @@ export default function SettingsPage() {
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="e.g. Dilip or BeatMaker"
                         required
-                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950/70 py-3 pl-10 pr-4 text-sm text-white placeholder:text-neutral-600 transition-colors focus:border-emerald-500/70 focus:outline-none focus:ring-2 focus:ring-emerald-500/15"
+                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950/70 py-3 pl-10 pr-4 text-sm text-white placeholder:text-neutral-600 transition-colors focus:border-emerald-500/70 focus:ring-2 focus:ring-emerald-500/15"
                       />
                     </div>
                     <p className="mt-2 text-[11px] text-neutral-500">This is how your name appears across Shubhu.</p>

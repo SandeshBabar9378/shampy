@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clientIp, rateLimited } from "@/lib/auth";
 import { isValidVideoId } from "@/lib/videoId";
-import { YT_ANDROID_UA, resolveAudioStream } from "@/lib/ytStream";
+import { YT_ANDROID_UA, parseStreamQuality, resolveAudioStream } from "@/lib/ytStream";
 import { DOWNLOADS_ENABLED } from "@/lib/features";
 
 // Streams a song's audio bytes to the browser so it can be stored on the
@@ -12,7 +12,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Downloads are paused for now." }, { status: 503 });
   }
 
-  const videoId = new URL(req.url).searchParams.get("videoId") || "";
+  const searchParams = new URL(req.url).searchParams;
+  const videoId = searchParams.get("videoId") || "";
+  const quality = parseStreamQuality(searchParams.get("quality"));
   if (!isValidVideoId(videoId)) {
     return NextResponse.json({ error: "A valid videoId is required" }, { status: 400 });
   }
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const stream = await resolveAudioStream(videoId, { preferMp4: true });
+    const stream = await resolveAudioStream(videoId, { preferMp4: true, quality });
     if (stream.status === "error" || !stream.streamUrl) {
       return NextResponse.json(
         { error: "This song can't be downloaded (YouTube didn't provide a direct audio stream)." },
@@ -41,6 +43,7 @@ export async function GET(req: NextRequest) {
     const headers: Record<string, string> = {
       "Content-Type": (stream.mimeType || "audio/mp4").split(";")[0],
       "Cache-Control": "private, no-store",
+      "X-Shubhu-Quality": quality,
     };
     const length = upstream.headers.get("content-length");
     if (length) headers["Content-Length"] = length;

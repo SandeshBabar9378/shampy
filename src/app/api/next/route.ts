@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import {
+  getDefaultArtworkFallbackUrl,
+  getYouTubeThumbnailUrl,
+} from "@/lib/artwork";
+import type { DataMode } from "@/lib/dataMode";
 
 interface FormattedNextResult {
   videoId: string;
@@ -23,9 +27,11 @@ function parseDuration(text: string): number {
 
 export async function GET(req: NextRequest) {
   let videoId = "";
+  let mode: DataMode = "high";
   try {
     const { searchParams } = new URL(req.url);
     videoId = searchParams.get("videoId") || "";
+    mode = searchParams.get("mode") === "low" ? "low" : "high";
   } catch (e: unknown) {
     if (
       typeof e === "object" &&
@@ -109,7 +115,7 @@ export async function GET(req: NextRequest) {
         const durationText = renderer?.lengthText?.runs?.[0]?.text || "";
         const duration = parseDuration(durationText);
         const thumbs = renderer?.thumbnail?.thumbnails || [];
-        const thumbnail = thumbs[thumbs.length - 1]?.url || thumbs[0]?.url || "";
+        const thumbnail = getYouTubeThumbnailUrl(thumbs, itemVideoId, "hq", mode);
 
         if (itemVideoId && title) {
           results.push({
@@ -124,7 +130,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(results);
+    return NextResponse.json(results.slice(0, mode === "low" ? 8 : 20));
   } catch (error) {
     console.error("API /next error:", error);
     return NextResponse.json([], { status: 500 });

@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   SkipBack, SkipForward, Volume2, VolumeX,
   Loader2, Mic2, Moon, ListMusic, Maximize2
 } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useAppShell } from "@/context/AppShellContext";
 import { useDominantColor } from "@/hooks/useDominantColor";
+import { useDataMode } from "@/hooks/useDataMode";
 import {
   applyStableArtworkFallback,
   getTrackArtworkFallbackUrl,
@@ -55,18 +57,64 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
   const [seekVal, setSeekVal] = useState(0);
   const [showPlaylistDropdown, setShowPlaylistDropdown] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+  const volumeControlRef = useRef<HTMLDivElement | null>(null);
 
   // Metrolist Feature Modals
   const [showLyrics, setShowLyrics] = useState(false);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [showSleepTimer, setShowSleepTimer] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+  const { mode } = useDataMode();
+  const { showRightPanel, sidebarCollapsed } = useAppShell();
+  const panelsOpen = !sidebarCollapsed || showRightPanel;
+  // Left sidebar is open when not collapsed; right panel is open when shown.
+  const bothSidebarsOpen = !sidebarCollapsed && showRightPanel;
 
-  const cover = getTrackArtworkUrl(currentTrack, "max");
-  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "max"));
+  // The bar lives inside the center column: toggling either sidebar changes
+  // its width without a window resize. Watch the bar itself, not the viewport.
+  const footerRef = useRef<HTMLElement | null>(null);
+  const [compactPlayer, setCompactPlayer] = useState(false);
+  const hasTrack = Boolean(currentTrack);
+  useEffect(() => {
+    const element = footerRef.current;
+    if (!element) return;
+    const measure = () => setCompactPlayer(element.clientWidth < 760);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasTrack]);
+
+  useEffect(() => {
+    if (!isVolumeOpen) return;
+    const handleOutsideClick = (event: PointerEvent) => {
+      if (volumeControlRef.current && !volumeControlRef.current.contains(event.target as Node)) {
+        setIsVolumeOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsVolumeOpen(false);
+    };
+    document.addEventListener("pointerdown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isVolumeOpen]);
+
+  // If either panel closes, drop the popup state so it can't reappear later
+  // without a fresh icon click when both panels are open again.
+  useEffect(() => {
+    if (!bothSidebarsOpen) setIsVolumeOpen(false);
+  }, [bothSidebarsOpen]);
+
+  const cover = getTrackArtworkUrl(currentTrack, "hq", mode);
+  const dominantColor = useDominantColor(getTrackArtworkUrl(currentTrack, "hq", mode));
   // The mobile bar keeps the track's stored artwork URL; the desktop footer
   // above continues to use the original resolver and is intentionally unchanged.
-  const mobileCover = getStableTrackArtworkUrl(currentTrack, "max");
+  const mobileCover = getStableTrackArtworkUrl(currentTrack, "hq", mode);
 
   // In embedded mode the bar is positioned inside the center flex region with
   // matching left/right gutters, so it stays centered as either sidebar changes.
@@ -103,6 +151,7 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
           DESKTOP PLAYER BAR — Floating rounded pill with thin border
       ══════════════════════════════════════════════════════════════════════ */}
       <footer
+        ref={footerRef}
         style={{
           background: `linear-gradient(
             to right,
@@ -111,11 +160,11 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
           )`,
           backdropFilter: "blur(24px)",
         }}
-        className={`${hideDesktop ? "hidden" : "hidden sm:flex"} ${positionClasses} shubhu-ui-controls h-22 rounded-2xl border border-white/10 px-5 items-center justify-between gap-4 select-none z-40 shadow-2xl transition-all duration-500`}
+        className={`${hideDesktop ? "hidden" : "hidden sm:flex"} ${positionClasses} shubhu-ui-controls flex-nowrap min-w-0 h-22 rounded-2xl border border-white/10 items-center justify-between select-none z-40 shadow-2xl transition-all duration-500 ${compactPlayer ? "gap-2 px-3" : "gap-4 px-5"}`}
       >
 
         {/* LEFT — track info */}
-        <div className="flex items-center gap-3 w-[28%] min-w-[170px]">
+        <div className={`flex items-center min-w-0 overflow-hidden ${compactPlayer ? "gap-2" : "gap-3"} ${panelsOpen ? "w-[28%] shrink-0" : "flex-1"}`}>
           <div
             onClick={() => setMobileExpanded(true)}
             className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 group"
@@ -127,8 +176,10 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
                 alt={currentTrack.title}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
+                loading="lazy"
+                decoding="async"
                 onError={(e) => {
-                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq");
+                  e.currentTarget.src = getTrackArtworkFallbackUrl(currentTrack, "hq", mode);
                 }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
@@ -167,8 +218,8 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
         </div>
 
         {/* CENTER — controls + progress */}
-        <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-lg">
-          <div className="flex items-center gap-6">
+        <div className={`flex min-w-0 flex-col items-center gap-1.5 overflow-hidden ${panelsOpen ? "flex-1" : "flex-[2]"} ${compactPlayer || panelsOpen ? "" : "w-2/4 max-w-lg"}`}>
+          <div className="flex shrink-0 items-center gap-3 lg:gap-6">
             {/* Shuffle */}
             <button
               onClick={toggleShuffle}
@@ -221,8 +272,8 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
           </div>
 
           {/* Progress bar */}
-          <div className="w-full flex items-center gap-2 text-xs text-neutral-400 font-mono group">
-            <span className="w-10 text-right">{formatTime(isSeeking ? seekVal : currentTime)}</span>
+          <div className="group flex flex-1 w-full min-w-0 items-center gap-2 overflow-hidden font-mono text-[10px] text-neutral-400 sm:text-xs">
+            <span className="w-9 shrink-0 text-right sm:w-10">{formatTime(isSeeking ? seekVal : currentTime)}</span>
             <input
               type="range"
               min={0}
@@ -234,34 +285,75 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
               style={{
                 background: `linear-gradient(to right, var(--theme-accent) ${seekPercent}%, var(--theme-slider-track) ${seekPercent}%)`,
               }}
-              className="flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
+              className="min-w-0 flex-1 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
             />
-            <span className="w-10 text-left">{formatTime(duration)}</span>
+            <span className="w-9 shrink-0 text-left sm:w-10">{formatTime(duration)}</span>
           </div>
         </div>
 
         {/* RIGHT — volume + controls */}
-        <div className="flex items-center justify-end gap-1.5 lg:gap-2 w-[28%] min-w-[170px]">
-          <button onClick={toggleMute} className="text-white hover:text-white/80 cursor-pointer transition-colors">
-            {isMuted || volume === 0
-              ? <VolumeX className="w-5 h-5 text-red-400" />
-              : <Volume2 className="w-5 h-5" />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={isMuted ? 0 : volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            style={{
-              background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--theme-slider-track) ${volumePercent}%)`,
-            }}
-            className="w-14 lg:w-20 xl:w-24 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
-          />
+        <div className={`flex items-center justify-end gap-1.5 lg:gap-2 min-w-0 ${panelsOpen ? "shrink-0" : "flex-1"} ${compactPlayer || panelsOpen ? "" : "w-[28%]"}`}>
+          <div ref={volumeControlRef} className="relative flex shrink-0">
+            <button
+              onClick={() => setIsVolumeOpen((open) => !open)}
+              className="text-white hover:text-white/80 cursor-pointer transition-colors"
+              title="Volume"
+              aria-label="Volume controls"
+              aria-expanded={bothSidebarsOpen && isVolumeOpen}
+            >
+              {isMuted || volume === 0
+                ? <VolumeX className="w-5 h-5 text-red-400" />
+                : <Volume2 className="w-5 h-5" />}
+            </button>
+            {bothSidebarsOpen && isVolumeOpen && (
+              <div className="absolute bottom-full left-1/2 z-50 mb-3 flex h-36 w-10 -translate-x-1/2 flex-col items-center justify-center gap-2 rounded-xl border border-white/10 bg-neutral-900/95 p-2 shadow-2xl backdrop-blur-xl">
+                <button
+                  onClick={toggleMute}
+                  className="text-neutral-300 hover:text-white cursor-pointer transition-colors"
+                  title={isMuted ? "Unmute" : "Mute"}
+                  aria-label={isMuted ? "Unmute" : "Mute"}
+                >
+                  {isMuted || volume === 0
+                    ? <VolumeX className="w-4 h-4 text-red-400" />
+                    : <Volume2 className="w-4 h-4" />}
+                </button>
+                <div className="relative h-24 w-6">
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    style={{
+                      background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--theme-slider-track) ${volumePercent}%)`,
+                      transform: "translate(-50%, -50%) rotate(-90deg)",
+                    }}
+                    aria-label="Volume level"
+                    className="absolute left-1/2 top-1/2 h-1 w-24 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          {!bothSidebarsOpen && (
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={isMuted ? 0 : volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              style={{
+                background: `linear-gradient(to right, var(--theme-accent) ${volumePercent}%, var(--theme-slider-track) ${volumePercent}%)`,
+              }}
+              aria-label="Volume"
+              className="w-[clamp(60px,10vw,100px)] min-w-0 h-1 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer"
+            />
+          )}
 
           {/* Add to Playlist button right of volume */}
-          <div className="relative flex items-center gap-1">
+          <div className="relative flex shrink-0 items-center gap-1">
             {/* Lyrics side panel */}
             <button
               onClick={() => {
@@ -270,7 +362,7 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
                 setShowSleepTimer(false);
                 setShowNowPlaying(false);
               }}
-              className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
+              className={`${compactPlayer ? "hidden" : "hidden md:block"} p-1.5 cursor-pointer transition-colors ${
                 showLyrics ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
               title="Lyrics"
@@ -284,7 +376,7 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
                 setShowLyrics(false);
                 setShowSleepTimer(false);
               }}
-              className={`hidden md:block p-1.5 cursor-pointer transition-colors ${
+              className={`${compactPlayer ? "hidden" : "hidden md:block"} p-1.5 cursor-pointer transition-colors ${
                 showQueue ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
               title="Queue"
@@ -292,7 +384,7 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
               <ListMusic className="w-4 h-4" />
             </button>
 
-            <div className="hidden lg:flex items-center gap-1">
+            <div className={`${compactPlayer ? "hidden" : "hidden lg:flex"} items-center gap-1`}>
               <div className="relative">
                 <button
                   onClick={toggleSleepTimerMenu}
@@ -311,7 +403,7 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
 
             <button
               onClick={() => setShowPlaylistDropdown(!showPlaylistDropdown)}
-              className={`hidden xl:block p-1.5 cursor-pointer transition-colors ${
+              className={`${compactPlayer ? "hidden" : "hidden xl:block"} p-1.5 cursor-pointer transition-colors ${
                 addedSuccess ? "text-emerald-400" : "text-white hover:text-white/80"
               }`}
               title="Add to Playlist"
@@ -405,6 +497,8 @@ export function Player({ embedded = false, hideDesktop = false }: PlayerProps) {
               alt={currentTrack.title}
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
               onError={(e) => applyStableArtworkFallback(e.currentTarget)}
               onClick={() => setMobileExpanded(true)}
               className="w-10 h-10 rounded-lg object-cover shrink-0 cursor-pointer"

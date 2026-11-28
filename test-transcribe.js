@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- standalone Node diagnostic script, not app code */
 const fs = require('fs');
 
 async function testTranscription() {

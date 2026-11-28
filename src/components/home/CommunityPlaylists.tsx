@@ -15,10 +15,11 @@ import { useRouter } from "next/navigation";
 import { MoreVertical, Users } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 import type { Track } from "@/lib/types";
-import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import { getDefaultArtworkFallbackUrl, normalizeArtworkUrl } from "@/lib/artwork";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 import { LAVENDER, PlaceholderRow, SectionHeader } from "./homeUi";
 
-const CARD_CLASS = "w-[37%] min-w-[128px]";
+const CARD_CLASS = MOBILE_HOME_TOKENS.horizontalCard;
 const MENU_WIDTH = 192;
 
 interface CommunityPlaylist {
@@ -227,13 +228,13 @@ export function CommunityPlaylists({ history }: { history: Track[] }) {
   };
 
   return (
-    <div className="relative mt-6">
+    <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
       <SectionHeader icon={Users} title="Community Playlists" />
       {items.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
           {items.map((playlist) => (
-            <div key={playlist.browseId} className={`${CARD_CLASS} shrink-0`}>
-              <div className="relative block aspect-square w-full">
+            <div key={playlist.browseId} className={CARD_CLASS}>
+              <div className={`relative block ${MOBILE_HOME_TOKENS.imageContainer}`}>
                 <button
                   type="button"
                   onClick={() => router.push(`/playlist/${playlist.browseId.replace(/^VL/, "")}`)}
@@ -243,10 +244,15 @@ export function CommunityPlaylists({ history }: { history: Track[] }) {
                   {playlist.thumbnail ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={playlist.thumbnail}
+                      src={normalizeArtworkUrl(playlist.thumbnail)}
                       alt={playlist.title}
                       referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover"
+                      loading="eager"
+                      decoding="async"
+                      onError={(e) => {
+                        e.currentTarget.src = getDefaultArtworkFallbackUrl();
+                      }}
+                      className={MOBILE_HOME_TOKENS.image}
                     />
                   ) : (
                     <span className="shubhu-placeholder-gradient-1 flex h-full w-full items-center justify-center text-2xl font-bold text-white/70">
@@ -271,10 +277,10 @@ export function CommunityPlaylists({ history }: { history: Track[] }) {
                 className="mt-1.5 block w-full cursor-pointer text-left"
                 title={playlist.title}
               >
-                <span className="block truncate text-[12px] font-semibold text-white">
+                <span className={MOBILE_HOME_TOKENS.titleText}>
                   {playlist.title}
                 </span>
-                <span className="block truncate text-[11px]" style={{ color: LAVENDER }}>
+                <span className={MOBILE_HOME_TOKENS.subtitleText} style={{ color: LAVENDER }}>
                   {playlist.author}
                   {playlist.trackCount !== null ? ` · ${playlist.trackCount} songs` : ""}
                 </span>

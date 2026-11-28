@@ -1,8 +1,9 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Shubhu phone-Home motion glyphs.
    Loops animate transform / opacity only. Glows are static pseudo-element
-   radial gradients (the moon glow pulses via opacity). Everything here is
-   disabled under prefers-reduced-motion. Colours come from the active theme.
+   radial gradients, and the hero sun's slow ray spin is transform-only.
+   Everything here is disabled under prefers-reduced-motion. Colours come
+   from the active theme.
    ────────────────────────────────────────────────────────────────────────── */
 
 /* Equalizer logo — five bars, soft themed glow behind them. */
@@ -41,29 +42,6 @@
   to { transform: scaleY(1); }
 }
 
-/* Moon — solid core plus a wide radial glow that slowly pulses (opacity only). */
-.shubhu-moon {
-  position: relative;
-}
-.shubhu-moon-glow {
-  position: absolute;
-  inset: -75%;
-  border-radius: 50%;
-  background: var(--theme-moon-glow);
-  pointer-events: none;
-  animation: shubhu-moon-pulse 6s ease-in-out infinite;
-}
-.shubhu-moon-core {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--theme-moon-core);
-}
-@keyframes shubhu-moon-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-
 /* Speed Dial circle — themed fill with a soft glow ring at the edge. */
 .shubhu-speed-circle {
   position: relative;
@@ -86,14 +64,180 @@
   transform: scale(0.93);
 }
 
+/* ── Hero sky: drifting clouds + one time-placed sun / moon ───────────────
+   The hero band is ~28% of the viewport (see MobileHome/NightSky). Clouds
+   drift across it on a transform + opacity loop and stay clipped inside it;
+   will-change is reserved for those movers. The sun/moon is placed by a JS
+   transform, never by animating left/top/box-shadow. */
+
+.shubhu-hero-cloud {
+  position: absolute;
+  left: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  /* Only the movers get will-change; kept local to the cloud layer. */
+  will-change: transform;
+  /* Three overlapping puffs (SVG inside the span) make a cloud silhouette;
+     only a light blur so it stays soft against the sky. */
+  color: #ffffff;
+  opacity: 0.5;
+  animation: shubhu-hero-cloud-drift 54s linear infinite;
+}
+.shubhu-hero-cloud svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: blur(1.5px);
+}
+
+/* Five clouds spread through the band. Each one drifts the full width of
+   the screen, so the strip never looks empty; negative delays stagger them. */
+.shubhu-hero-cloud--1 {
+  top: 2%;
+  width: 150px;
+  height: 54px;
+  animation-duration: 52s;
+  animation-delay: -4s;
+}
+.shubhu-hero-cloud--2 {
+  top: 30%;
+  width: 108px;
+  height: 40px;
+  animation-duration: 68s;
+  animation-delay: -30s;
+}
+.shubhu-hero-cloud--3 {
+  top: 12%;
+  width: 196px;
+  height: 68px;
+  animation-duration: 84s;
+  animation-delay: -58s;
+}
+.shubhu-hero-cloud--4 {
+  top: 48%;
+  width: 130px;
+  height: 46px;
+  animation-duration: 76s;
+  animation-delay: -18s;
+}
+.shubhu-hero-cloud--5 {
+  top: 64%;
+  width: 92px;
+  height: 32px;
+  animation-duration: 60s;
+  animation-delay: -44s;
+}
+
+/* Travel is measured in vw, not in the cloud's own width, so every cloud
+   crosses the whole band and restarts off-screen every loop. */
+@keyframes shubhu-hero-cloud-drift {
+  from {
+    transform: translateX(-45vw);
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(115vw);
+    opacity: 0.22;
+  }
+}
+
+/* Body is a 40px circle anchored at the band's top-left; only `transform`
+   is written by JS, so left/top stay static and the arc stays composited. */
+.shubhu-hero-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+}
+.shubhu-hero-body-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+}
+.shubhu-hero-body-halo {
+  position: absolute;
+  inset: -45%;
+  border-radius: 9999px;
+  pointer-events: none;
+  filter: blur(8px);
+}
+
+/* Sun — warm yellow-orange radial glow (gradients, not animated box-shadow). */
+.shubhu-hero-body--sun .shubhu-hero-body-core {
+  background: radial-gradient(
+    circle at 35% 32%,
+    #fff7d6 0%,
+    #fde047 30%,
+    #fbbf24 62%,
+    #f59e0b 86%,
+    rgba(245, 158, 11, 0) 100%
+  );
+}
+.shubhu-hero-body--sun .shubhu-hero-body-halo {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(253, 224, 71, 0.5) 0%,
+    rgba(251, 146, 60, 0.26) 45%,
+    transparent 72%
+  );
+}
+
+/* Moon — pale lavender radial glow with a soft halo. */
+.shubhu-hero-body--moon .shubhu-hero-body-core {
+  background: radial-gradient(
+    circle at 35% 32%,
+    #faf5ff 0%,
+    #ede9fe 34%,
+    #d8c7fb 66%,
+    #c4b5fd 88%,
+    rgba(196, 181, 253, 0) 100%
+  );
+}
+.shubhu-hero-body--moon .shubhu-hero-body-halo {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(196, 181, 253, 0.5) 0%,
+    rgba(168, 85, 247, 0.24) 48%,
+    transparent 74%
+  );
+}
+
+/* Sun rays — 12 short rounded strokes drawn in the hero SVG, so the sun
+   reads as a sun instead of a glowing dot. Only the sun renders this layer;
+   the slow spin is a transform on the SVG, never a layout change. */
+.shubhu-hero-body-rays {
+  position: absolute;
+  inset: -38%;
+  pointer-events: none;
+  color: #fcd34d;
+  opacity: 0.85;
+  transform-origin: 50% 50%;
+  animation: shubhu-hero-rays-spin 72s linear infinite;
+}
+@keyframes shubhu-hero-rays-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .shubhu-eq[data-playing="true"] .shubhu-eq-bar,
-  .shubhu-moon-glow {
+  .shubhu-hero-body-rays {
     animation: none;
   }
   .shubhu-press,
   .shubhu-press:active {
     transition: none;
     transform: none;
+  }
+  /* No cloud drift; hide the clouds entirely. */
+  .shubhu-hero-cloud {
+    animation: none;
+    opacity: 0;
+    will-change: auto;
   }
 }

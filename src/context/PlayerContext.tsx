@@ -6,6 +6,7 @@ import { CURATED_TRACKS } from "@/lib/musicProvider";
 import { getSimilarSongs } from "@/lib/similarity";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
 import { MOBILE_DOWNLOADS_ENABLED } from "@/lib/features";
+import { getActiveDataMode } from "@/lib/dataMode";
 import { isValidVideoId } from "@/lib/videoId";
 import {
   getOfflineAudio,
@@ -302,6 +303,12 @@ const RECENT_KEEP = 6;
 // Don't prune a just-saved local download before the server list has caught up.
 const DOWNLOAD_PRUNE_GRACE_MS = 2 * 60_000;
 
+// Time and randomness live outside the component so React Compiler can prove
+// renders are pure. Playback bookkeeping still gets real, unique timestamps.
+const nowMs = () => Date.now();
+const shortRandomId = () => Math.random().toString(36).slice(2, 8);
+const createPlayInstanceId = () => `${nowMs().toString(36)}_${shortRandomId()}`;
+
 const DOWNLOAD_TEST_PLAYLIST = getDownloadTestPlaylist();
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
@@ -313,8 +320,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = lsGet("shubhu_theme");
-    setThemeValue(stored === "ocean" || stored === "graphite" ? stored : "aurora");
-    setThemeReady(true);
+    queueMicrotask(() => {
+      setThemeValue(stored === "ocean" || stored === "graphite" ? stored : "aurora");
+      setThemeReady(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -463,24 +472,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       lsSet("shubhu_device_id", deviceId);
     }
 
-    // Restore user profile from localStorage first (instant)
+    // Restore user profile and last playback position after the hydration
+    // commit so React Compiler does not cascade renders from this effect.
     const cachedUser = lsGetJSON<UserProfile | null>("shubhu_user", null);
-    if (cachedUser) setUser(cachedUser);
+    queueMicrotask(() => {
+      if (cachedUser) setUser(cachedUser);
 
-    // Restore last played song & position on app reload (paused state)
-    try {
-      const last = lsGetJSON<{ song: Track; position: number; timestamp: number } | null>(
-        "lastPlayedSong",
-        null
-      );
-      if (last?.song) {
-        setCurrentTrack(last.song);
-        setDuration(last.song.duration || 0);
-        setCurrentTime(last.position || 0);
-        setSavedPosition(last.position || 0);
-        setIsPlaying(false);
-      }
-    } catch {}
+      try {
+        const last = lsGetJSON<{ song: Track; position: number; timestamp: number } | null>(
+          "lastPlayedSong",
+          null
+        );
+        if (last?.song) {
+          setCurrentTrack(last.song);
+          setDuration(last.song.duration || 0);
+          setCurrentTime(last.position || 0);
+          setSavedPosition(last.position || 0);
+          setIsPlaying(false);
+        }
+      } catch {}
+    });
 
     // Which downloaded songs are stored on this device.
     listOfflineAudio()
@@ -691,13 +702,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (open && open.songId === track.id) return;
     if (open) closePlay("skip");
 
-    const instanceId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const instanceId = createPlayInstanceId();
     const replay = sessionPlayedRef.current.has(track.id);
     sessionPlayedRef.current.add(track.id);
     playCtxRef.current = {
       songId: track.id,
       instanceId,
-      startedAt: Date.now(),
+      startedAt: nowMs(),
       lastPosition: 0,
       listenedSeconds: 0,
       lastTickPosition: 0,
@@ -813,9 +824,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     if (!force) {
       if (pendingWritesRef.current > 0) return;
-      if (Date.now() - lastRefreshAtRef.current < REFRESH_MIN_GAP_MS) return;
+      if (nowMs() - lastRefreshAtRef.current < REFRESH_MIN_GAP_MS) return;
     }
-    lastRefreshAtRef.current = Date.now();
+    lastRefreshAtRef.current = nowMs();
     userIdRef.current = userId;
 
     try {
@@ -974,7 +985,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [currentIndex]);
 
   useEffect(() => {
-    currentTrackRef.current = currentTrack;
+    queueMicrotask(() => {
+      currentTrackRef.current = currentTrack;
+    });
   }, [currentTrack]);
 
   // Helper to find similar tracks from /api/next and local scoring
@@ -1008,6 +1021,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           seedVideoId: targetVideoId,
           session: sessionIdRef.current,
           queueIds,
+          mode: getActiveDataMode(),
         });
         const res = await fetch(`/api/recommend?${params.toString()}`);
         if (res.ok) {
@@ -1028,7 +1042,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     if (nextTracks.length < 5 && targetVideoId) {
       try {
-        const res = await fetch(`/api/next?videoId=${encodeURIComponent(targetVideoId)}`);
+        const res = await fetch(
+          `/api/next?videoId=${encodeURIComponent(targetVideoId)}&mode=${getActiveDataMode()}`,
+        );
         if (res.ok) {
           const apiNext = await res.json();
           if (Array.isArray(apiNext) && apiNext.length > 0) {
@@ -1073,6 +1089,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return similar;
   };
 
+  // `playTrack` is declared later; this ref lets the completion handler call
+  // the current implementation without creating a render-time circular binding.
+  const playTrackRef = useRef<
+    (track: Track, newQueue?: Track[], options?: PlayTrackOptions) => Promise<void>
+  >(async () => {});
+
   const handleSongEnd = async () => {
     // The track genuinely finished: this is a completion, not a skip.
     closePlay("complete");
@@ -1096,10 +1118,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           ytPlayerRef.current.playVideo();
           setIsPlaying(true);
         } catch {
-          if (currentTrackRef.current) playTrack(currentTrackRef.current);
+          if (currentTrackRef.current) playTrackRef.current(currentTrackRef.current);
         }
       } else if (currentTrackRef.current) {
-        playTrack(currentTrackRef.current);
+        playTrackRef.current(currentTrackRef.current);
       }
       return;
     }
@@ -1126,7 +1148,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       currentIndexRef.current = nextIndex;
       setCurrentIndex(nextIndex);
-      playTrack(
+      playTrackRef.current(
         currentQueue[nextIndex],
         undefined,
         shuffleQueueRef.current ? { appendSimilar: false } : undefined,
@@ -1140,21 +1162,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     if (nextSong) {
       setCurrentIndex(currentIdx + 1);
-      playTrack(nextSong);
+      playTrackRef.current(nextSong);
     } else if (currentSong) {
-      // Reached the end of queue -> auto-fetch similar songs and continue endlessly!
-      const similar = await fetchSimilarTracks(currentSong);
+      // Data saver keeps the queue finite; only loop what the user already has.
+      const similar = getActiveDataMode() === "low" ? [] : await fetchSimilarTracks(currentSong);
       if (similar.length > 0) {
         const extendedQueue = [...currentQueue, ...similar];
         setQueue(extendedQueue);
         setCurrentIndex(currentQueue.length);
-        playTrack(similar[0]);
+        playTrackRef.current(similar[0]);
       } else {
         // Reshuffle current queue as infinite fallback
         const reshuffled = [...currentQueue].sort(() => Math.random() - 0.5);
         setQueue(reshuffled);
         setCurrentIndex(0);
-        playTrack(reshuffled[0]);
+        playTrackRef.current(reshuffled[0]);
       }
     }
   };
@@ -1488,6 +1510,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     // Test fixtures stay isolated from recommendations and repair queues.
     if (
       options?.appendSimilar !== false &&
+      getActiveDataMode() !== "low" &&
       // A Shuffle Play queue stays exactly the randomized playlist; incidental
       // plays must not append Smart Queue recommendations to it.
       !shuffleQueueRef.current &&
@@ -1572,6 +1595,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      playTrackRef.current = playTrack;
+    });
+  }, [playTrack]);
+
   // The playlist Shuffle action goes through the same playTrack/queue path as
   // Play. It only randomizes the queue first and enables the shared shuffle
   // state so every player control sees the same order.
@@ -1648,9 +1677,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (isRepeat) {
         nextIdx = 0;
       } else {
-        // Queue exhausted -> auto-fetch similar tracks and keep playing!
+        // Queue exhausted -> auto-fetch similar tracks and keep playing.
+        // Data saver skips that fetch and simply loops the current queue.
         const currentSong = currentTrackRef.current;
-        if (currentSong) {
+        if (currentSong && getActiveDataMode() !== "low") {
           const similar = await fetchSimilarTracks(currentSong);
           if (similar.length > 0) {
             const extendedQueue = [...queueRef.current, ...similar];

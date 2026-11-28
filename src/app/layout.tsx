@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Fraunces, Sora } from "next/font/google";
 import "./globals.css";
 import { PlayerProvider } from "@/context/PlayerContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -9,6 +10,23 @@ import {
   THEME_IDS,
   THEME_STORAGE_KEY,
 } from "@/lib/theme";
+import { DATA_MODE_STORAGE_KEY } from "@/lib/dataMode";
+
+// Shubhu's two voices: Sora carries the interface, Fraunces carries the
+// editorial headlines (greeting, shelf titles, page titles). Both are exposed
+// as CSS variables so every component reads one type system.
+const sora = Sora({
+  subsets: ["latin"],
+  variable: "--font-sora",
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+  axes: ["SOFT", "WONK", "opsz"],
+});
 
 export const metadata: Metadata = {
   title: "Shubhu",
@@ -87,15 +105,33 @@ const themeBootstrap = `
 })();
 `;
 
+// The data-saver preference must be available before React effects run so the
+// first search/recommend request and every non-React downloader agree on it.
+// This pre-paint script mutates <html> after the server HTML is parsed and
+// before React hydrates, so <html> carries suppressHydrationWarning: React
+// must keep the DOM value instead of treating the extra attribute as a mismatch.
+const dataModeBootstrap = `
+(function () {
+  var stored = null;
+  try { stored = localStorage.getItem(${JSON.stringify(DATA_MODE_STORAGE_KEY)}); } catch (e) {}
+  document.documentElement.setAttribute('data-data-mode', stored === 'low' ? 'low' : 'high');
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark h-full bg-[var(--background)] text-[var(--foreground)] antialiased">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`dark h-full bg-[var(--background)] text-[var(--foreground)] antialiased ${sora.variable} ${fraunces.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        <script dangerouslySetInnerHTML={{ __html: dataModeBootstrap }} />
       </head>
       <body className="h-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] font-sans">
         <ThemeProvider>

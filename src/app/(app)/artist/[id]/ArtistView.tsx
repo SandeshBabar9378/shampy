@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mic2, Play, Disc3, ListMusic, UserPlus, Check } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
+import { useDataMode } from "@/hooks/useDataMode";
 import { TrackRow } from "@/components/TrackRow";
 import { Track } from "@/lib/types";
 import { getDefaultArtworkFallbackUrl } from "@/lib/artwork";
@@ -66,6 +67,8 @@ function toTrack(item: ArtistTrack): Track {
 
 export function ArtistView({ id }: { id: string }) {
   const { playTrack, followedArtists, toggleFollowArtist } = usePlayer();
+  const { mode } = useDataMode();
+  const playOptions = mode === "low" ? { appendSimilar: false } : undefined;
   const [artist, setArtist] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,8 +76,12 @@ export function ArtistView({ id }: { id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
+    });
 
     fetch(`/api/artist?id=${encodeURIComponent(id)}`)
       .then(async (res) => {
@@ -133,7 +140,7 @@ export function ArtistView({ id }: { id: string }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-[var(--background)]">
-      <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 pb-[calc(var(--player-height)+24px)] scrollbar-thin scrollbar-thumb-neutral-800">
+      <main className="app-scroll-pad flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 scrollbar-thin scrollbar-thumb-neutral-800">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-3 sm:mb-6"
@@ -156,14 +163,27 @@ export function ArtistView({ id }: { id: string }) {
           ) : (
             <div className="space-y-8 animate-in fade-in duration-200">
               {/* Artist header */}
-              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl bg-gradient-to-b from-neutral-800/70 to-neutral-950/40">
-                <div className="w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-full overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-neutral-800/70 to-neutral-950/40 p-4 shadow-2xl sm:rounded-3xl sm:p-8">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-30"
+                  style={{
+                    backgroundImage: `url("${artist.thumbnail || getDefaultArtworkFallbackUrl()}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: "blur(60px) saturate(1.3)",
+                  }}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/55 to-transparent" />
+                <div className="relative z-10 w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-full overflow-hidden shadow-2xl shrink-0 bg-neutral-800">
                   {artist.thumbnail ? (
                     <img
                       src={artist.thumbnail}
                       alt={artist.title}
                       crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src = getDefaultArtworkFallbackUrl();
                       }}
@@ -176,7 +196,7 @@ export function ArtistView({ id }: { id: string }) {
                   )}
                 </div>
 
-                <div className="text-center sm:text-left flex-1 min-w-0">
+                <div className="relative z-10 min-w-0 flex-1 text-center sm:text-left">
                   <p className="text-[10px] sm:text-xs uppercase font-bold tracking-wider text-emerald-400 font-mono">ARTIST</p>
                   <h1 className="font-display text-3xl sm:text-5xl font-bold text-white mt-1 mb-1.5 sm:mb-2 tracking-tight break-words leading-tight line-clamp-2">
                     {artist.title}
@@ -192,7 +212,7 @@ export function ArtistView({ id }: { id: string }) {
               <div className="flex items-center gap-3">
                 {tracks.length > 0 && (
                   <button
-                    onClick={() => playTrack(tracks[0], tracks)}
+                    onClick={() => playTrack(tracks[0], tracks, playOptions)}
                     className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
                     title="Play Artist"
                   >
@@ -237,7 +257,7 @@ export function ArtistView({ id }: { id: string }) {
 
               {/* Popular section */}
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Popular</h2>
+                <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-white mb-4">Popular</h2>
                 <div className="bg-neutral-950/40 rounded-2xl border border-neutral-900/60 p-2 divide-y divide-neutral-900">
                   {tracks.length === 0 ? (
                     <div className="py-16 text-center text-neutral-500">
@@ -256,7 +276,7 @@ export function ArtistView({ id }: { id: string }) {
               {hasDiscography && (
                 <div>
                   <div className="flex flex-col gap-2.5 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                    <h2 className="text-lg sm:text-xl font-bold text-white">Discography</h2>
+                    <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-white">Discography</h2>
                     {/* On phones the three tabs share one scrollable row; on desktop
                         this is the original inline group beside the heading. */}
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1 sm:mx-0 sm:gap-2 sm:overflow-visible sm:px-0">
@@ -311,6 +331,8 @@ export function ArtistView({ id }: { id: string }) {
                               alt={release.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
@@ -337,7 +359,7 @@ export function ArtistView({ id }: { id: string }) {
               {/* Featuring <artist name> section */}
               {featuredOn.length > 0 && (
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4">
+                  <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-white mb-4">
                     Featuring {artist.title}
                   </h2>
                   <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
@@ -354,6 +376,8 @@ export function ArtistView({ id }: { id: string }) {
                               alt={playlist.title}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}
@@ -385,7 +409,7 @@ export function ArtistView({ id }: { id: string }) {
               {/* Fans also like section */}
               {fansAlsoLike.length > 0 && (
                 <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Fans also like</h2>
+                  <h2 className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-white mb-4">Fans also like</h2>
                   <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {fansAlsoLike.map((similar, idx) => (
                       <Link
@@ -400,6 +424,8 @@ export function ArtistView({ id }: { id: string }) {
                               alt={similar.name}
                               crossOrigin="anonymous"
                               referrerPolicy="no-referrer"
+                              loading="lazy"
+                              decoding="async"
                               onError={(e) => {
                                 e.currentTarget.src = getDefaultArtworkFallbackUrl();
                               }}

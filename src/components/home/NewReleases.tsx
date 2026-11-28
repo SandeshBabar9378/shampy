@@ -14,9 +14,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import type { Track } from "@/lib/types";
+import { getDefaultArtworkFallbackUrl, normalizeArtworkUrl } from "@/lib/artwork";
+import { MOBILE_HOME_TOKENS } from "@/lib/home-tokens";
 import { LAVENDER, PlaceholderRow, SectionHeader } from "./homeUi";
 
-const CARD_CLASS = "w-[37%] min-w-[128px]";
+const CARD_CLASS = MOBILE_HOME_TOKENS.horizontalCard;
 
 interface Release {
   browseId: string;
@@ -135,26 +137,31 @@ export function NewReleases({ history }: { history: Track[] }) {
   const displayed = artistKey ? releases : [];
 
   return (
-    <div className="relative mt-6">
+    <div className={`relative ${MOBILE_HOME_TOKENS.sectionSpacing}`}>
       <SectionHeader icon={Sparkles} title="New Releases For You" />
       {displayed.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+        <div className={MOBILE_HOME_TOKENS.horizontalRow}>
           {displayed.map((release) => (
             <button
               key={release.browseId}
               type="button"
               onClick={() => router.push(`/album/${encodeURIComponent(release.browseId)}`)}
-              className={`${CARD_CLASS} shrink-0 cursor-pointer text-left shubhu-press`}
+              className={`${CARD_CLASS} cursor-pointer text-left shubhu-press`}
               title={release.title}
             >
-              <span className="shubhu-art-placeholder block aspect-square w-full overflow-hidden rounded-xl border">
+              <span className={`shubhu-art-placeholder block ${MOBILE_HOME_TOKENS.imageContainer}`}>
                 {release.thumbnail ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={release.thumbnail}
+                    src={normalizeArtworkUrl(release.thumbnail)}
                     alt={release.title}
                     referrerPolicy="no-referrer"
-                    className="h-full w-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    onError={(e) => {
+                      e.currentTarget.src = getDefaultArtworkFallbackUrl();
+                    }}
+                    className={MOBILE_HOME_TOKENS.image}
                   />
                 ) : (
                   <span className="shubhu-placeholder-gradient-2 flex h-full w-full items-center justify-center text-2xl font-bold text-white/70">
@@ -162,13 +169,12 @@ export function NewReleases({ history }: { history: Track[] }) {
                   </span>
                 )}
               </span>
-              <span className="mt-1.5 block truncate text-[12px] font-semibold text-white">
+              <span className={`mt-1.5 ${MOBILE_HOME_TOKENS.titleText}`}>
                 {release.title}
               </span>
-              <span className="block truncate text-[11px]" style={{ color: LAVENDER }}>
-                {release.artist}
+              <span className={MOBILE_HOME_TOKENS.subtitleText} style={{ color: LAVENDER }}>
+                {release.artist} · {release.year}
               </span>
-              <span className="block truncate text-[10px] text-white/50">{release.year}</span>
             </button>
           ))}
         </div>

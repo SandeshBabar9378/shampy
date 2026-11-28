@@ -31,7 +31,15 @@ export function AppShell({
   const [isCreatePlaylistOpen, setIsCreatePlaylistOpen] = useState(false);
   const [pendingPlaylistTrack, setPendingPlaylistTrack] = useState<Track | null>(null);
   const [showRightPanel, setShowRightPanel] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // Desktop opens with the full library visible; narrow windows collapse it
+  // after mount so the content column never gets squeezed.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1180px)").matches) {
+      queueMicrotask(() => setSidebarCollapsed(true));
+    }
+  }, []);
 
   // Shell views live on Home. From a detail route, switch back before applying them.
   const setCurrentView = useCallback((view: string) => {

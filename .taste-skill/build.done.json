@@ -1,0 +1,11 @@
+{
+ "page": null,
+ "url": "http://127.0.0.1:3001/",
+ "root": null,
+ "kind": "software",
+ "category": "music player",
+ "primary": "Play a mix",
+ "rounds": 3,
+ "start": "2026-11-27T11:14:42.283Z",
+ "by": "gate.mjs --start"
+}

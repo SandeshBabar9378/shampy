@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCommunityPlaylist } from "@/lib/playlistUtils";
-import { getYouTubeThumbnailUrl, getDefaultArtworkFallbackUrl } from "@/lib/artwork";
+import {
+  fitArtworkUrlToMode,
+  getYouTubeThumbnailUrl,
+  getDefaultArtworkFallbackUrl,
+} from "@/lib/artwork";
+import type { DataMode } from "@/lib/dataMode";
 
 interface FormattedSearchResult {
   videoId: string;
@@ -92,6 +97,17 @@ type JsonObject = Record<string, unknown>;
 
 const SEARCH_URL = "https://music.youtube.com/youtubei/v1/search";
 const MAX_RESULTS = 50;
+
+function fitResultThumbnails<T extends { thumbnail: string }>(
+  items: T[],
+  mode: DataMode,
+): T[] {
+  if (mode === "high") return items;
+  return items.map((item) => ({
+    ...item,
+    thumbnail: fitArtworkUrlToMode(item.thumbnail, mode),
+  }));
+}
 
 // Metrolist (innertube/src/main/kotlin/com/metrolist/innertube/YouTube.kt)
 // SearchFilter constants.
@@ -530,9 +546,15 @@ function topResultOf(data: unknown): FormattedSearchResult | null {
 
 export async function GET(req: NextRequest) {
   let q = "";
+  let mode: DataMode = "high";
+  let songLimit = MAX_RESULTS;
   try {
     const { searchParams } = new URL(req.url);
     q = searchParams.get("q") || "";
+    mode = searchParams.get("mode") === "low" ? "low" : "high";
+    const rawLimit = Number(searchParams.get("limit"));
+    const requested = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : MAX_RESULTS;
+    songLimit = Math.min(mode === "low" ? 25 : MAX_RESULTS, Math.max(1, requested));
   } catch (e: unknown) {
     if (
       typeof e === "object" &&
@@ -550,6 +572,7 @@ export async function GET(req: NextRequest) {
     }
 
     const results: FormattedSearchResult[] = [];
+    const entityLimit = mode === "low" ? 10 : 20;
     let shelves = 0;
     let continuation: string | null = null;
 
@@ -597,13 +620,13 @@ export async function GET(req: NextRequest) {
         seen.add(item.videoId);
         return true;
       })
-      .slice(0, MAX_RESULTS);
+      .slice(0, songLimit);
 
     const officialPlaylists = playlistData
-      ? parseBrowseList(playlistData, parsePlaylistItem, 20)
+      ? parseBrowseList(playlistData, parsePlaylistItem, entityLimit)
       : [];
     const communityPlaylists = communityPlaylistData
-      ? parseBrowseList(communityPlaylistData, parsePlaylistItem, 20)
+      ? parseBrowseList(communityPlaylistData, parsePlaylistItem, entityLimit)
       : [];
 
     // Combine official and community playlists without duplicate browseIds
@@ -614,8 +637,8 @@ export async function GET(req: NextRequest) {
       playlistSeen.add(p.browseId);
       playlists.push(p);
     }
-    const artists = artistData ? parseBrowseList(artistData, parseArtistItem, 20) : [];
-    const albums = albumData ? parseBrowseList(albumData, parseAlbumItem, 20) : [];
+    const artists = artistData ? parseBrowseList(artistData, parseArtistItem, entityLimit) : [];
+    const albums = albumData ? parseBrowseList(albumData, parseAlbumItem, entityLimit) : [];
     const topResult = unfilteredData ? topResultOf(unfilteredData) : null;
 
     console.log(
@@ -623,11 +646,13 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
-      tracks: deduplicated,
-      playlists,
-      artists,
-      albums,
-      topResult,
+      tracks: fitResultThumbnails(deduplicated, mode),
+      playlists: fitResultThumbnails(playlists, mode),
+      artists: fitResultThumbnails(artists, mode),
+      albums: fitResultThumbnails(albums, mode),
+      topResult: topResult
+        ? { ...topResult, thumbnail: fitArtworkUrlToMode(topResult.thumbnail, mode) }
+        : null,
     });
   } catch (error) {
     console.error("API /search error:", error);
